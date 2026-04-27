@@ -3,52 +3,99 @@ import type { MetaCampaign } from "@/types/meta";
 import { nanoid } from "./utils";
 
 const FIELD_MAP: Record<string, keyof MetaCampaign> = {
+  // Nombre / campaign name
   "campaign name": "name",
   "ad set name": "name",
   "ad name": "name",
   nombre: "name",
   campaña: "name",
+  "nombre de la campaña": "name",
+  "nombre del conjunto de anuncios": "name",
   "conjunto de anuncios": "name",
+  "nombre del anuncio": "name",
   anuncio: "name",
+
+  // Gasto / spend — con variantes de moneda (clp, usd, ars, etc.)
   amount_spent: "spend",
   "amount spent": "spend",
   "importe gastado": "spend",
   gasto: "spend",
   spend: "spend",
+
+  // Impresiones
   impressions: "impressions",
   impresiones: "impressions",
+
+  // Alcance
   reach: "reach",
   alcance: "reach",
+
+  // Clics
   clicks: "clicks",
   "link clicks": "clicks",
   "clics en el enlace": "clicks",
   clics: "clicks",
+
+  // Conversiones / resultados
   conversions: "conversions",
+  resultados: "conversions",
   "website purchases": "conversions",
   "compras en el sitio web": "conversions",
   conversiones: "conversions",
+
+  // CPA / costo por resultado
+  "costo por resultados": "cpa",
+  "cost per result": "cpa",
+  cpa: "cpa",
+
+  // ROAS
   "purchase roas (return on ad spend)": "roas",
   "website purchase roas": "roas",
   roas: "roas",
+
+  // Valor de conversión
   "conversion values": "conversionValue",
   "purchase conversion value": "conversionValue",
   "valor de conversión de compras": "conversionValue",
   "valor de conversión": "conversionValue",
   "conversion value": "conversionValue",
+
+  // Frecuencia
   frequency: "frequency",
   frecuencia: "frequency",
+
+  // CPM — con variantes de moneda
   cpm: "cpm",
+
+  // CTR / CPC
   ctr: "ctr",
   cpc: "cpc",
-  cpa: "cpa",
+
+  // Estado / entrega
   status: "status",
   estado: "status",
+  "entrega del conjunto de anuncios": "status",
+  "ad set delivery": "status",
+  "campaign delivery": "status",
+  "entrega de la campaña": "status",
+
+  // Objetivo
   objective: "objective",
   objetivo: "objective",
+  "indicador de resultado": "objective",
+  "result indicator": "objective",
 };
 
+// Normaliza el encabezado: minúsculas, sin espacios dobles,
+// y elimina sufijos de moneda como "(CLP)", "(USD)", "(ARS)", etc.
 function normalizeHeader(h: string): string {
-  return h.toLowerCase().trim().replace(/\s+/g, " ");
+  return h
+    .toLowerCase()
+    .trim()
+    .replace(/\s*\([a-z]{3}\)\s*/gi, " ") // quita "(CLP)", "(USD)", etc.
+    .replace(/\s*\(costo por mil impresiones\)\s*/gi, " ") // quita descripción CPM
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function parseNumber(v: unknown): number {
