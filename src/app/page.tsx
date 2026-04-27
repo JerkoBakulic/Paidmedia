@@ -1,0 +1,261 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import type { MetaCampaign, MetaTargets, CampaignAnalysis } from "@/types/meta";
+import { analyze, DEFAULT_TARGETS } from "@/lib/decisions";
+import { MetricsInput } from "@/components/MetricsInput";
+import { CampaignTable } from "@/components/CampaignTable";
+import { KpiCard } from "@/components/KpiCard";
+import { TargetsPanel } from "@/components/TargetsPanel";
+import { PerformanceChart } from "@/components/PerformanceChart";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { DecisionBadge } from "@/components/DecisionBadge";
+import {
+  BarChart3,
+  DollarSign,
+  TrendingUp,
+  Users,
+  MousePointerClick,
+  ShoppingCart,
+  Zap,
+  Trash2,
+} from "lucide-react";
+import { formatCurrency, formatPercent, formatRoas, formatNumber } from "@/lib/utils";
+
+export default function Dashboard() {
+  const [campaigns, setCampaigns] = useState<MetaCampaign[]>([]);
+  const [targets, setTargets] = useState<MetaTargets>(DEFAULT_TARGETS);
+  const [activeTab, setActiveTab] = useState<"table" | "charts">("table");
+
+  const analyzed = useMemo<CampaignAnalysis[]>(
+    () => campaigns.map((c) => analyze(c, targets)),
+    [campaigns, targets]
+  );
+
+  const totals = useMemo(() => {
+    const spend = analyzed.reduce((s, c) => s + c.spend, 0);
+    const impressions = analyzed.reduce((s, c) => s + c.impressions, 0);
+    const reach = analyzed.reduce((s, c) => s + c.reach, 0);
+    const clicks = analyzed.reduce((s, c) => s + c.clicks, 0);
+    const conversions = analyzed.reduce((s, c) => s + c.conversions, 0);
+    const conversionValue = analyzed.reduce((s, c) => s + c.conversionValue, 0);
+    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+    const cpa = conversions > 0 ? spend / conversions : 0;
+    const roas = spend > 0 && conversionValue > 0 ? conversionValue / spend : 0;
+    const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
+    const avgFreq = reach > 0 ? impressions / reach : 0;
+    return { spend, impressions, reach, clicks, conversions, conversionValue, ctr, cpa, roas, cpm, avgFreq };
+  }, [analyzed]);
+
+  const decisionCounts = useMemo(
+    () => ({
+      SCALE: analyzed.filter((c) => c.decision === "SCALE").length,
+      MONITOR: analyzed.filter((c) => c.decision === "MONITOR").length,
+      OPTIMIZE: analyzed.filter((c) => c.decision === "OPTIMIZE").length,
+      TEST: analyzed.filter((c) => c.decision === "TEST").length,
+      PAUSE: analyzed.filter((c) => c.decision === "PAUSE").length,
+    }),
+    [analyzed]
+  );
+
+  return (
+    <div className="min-h-screen" style={{ background: "var(--background)" }}>
+      {/* Header */}
+      <header
+        className="sticky top-0 z-40 border-b backdrop-blur-sm"
+        style={{
+          borderColor: "var(--border)",
+          background: "color-mix(in srgb, var(--card) 90%, transparent)",
+        }}
+      >
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500">
+              <BarChart3 className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-sm font-bold leading-tight">Paid Media Analyzer</h1>
+              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                Meta Ads · Análisis de campañas
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {campaigns.length > 0 && (
+              <button
+                onClick={() => setCampaigns([])}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition-all"
+                style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Limpiar
+              </button>
+            )}
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-screen-2xl mx-auto px-4 py-6 flex flex-col gap-6">
+        {/* Input section */}
+        <section className="flex flex-col gap-3">
+          <TargetsPanel targets={targets} onChange={setTargets} />
+          <MetricsInput onData={setCampaigns} />
+        </section>
+
+        {/* Empty state */}
+        {campaigns.length === 0 && (
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+            <div
+              className="flex items-center justify-center w-16 h-16 rounded-2xl"
+              style={{ background: "var(--accent)" }}
+            >
+              <BarChart3 className="w-8 h-8" style={{ color: "var(--muted-foreground)" }} />
+            </div>
+            <div>
+              <p className="font-semibold text-lg">Sin datos de campañas</p>
+              <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
+                Subí un Excel de Meta Ads Manager, pegá las métricas, o ingresalas manualmente
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center max-w-lg">
+              {[
+                "Campaign Name",
+                "Amount Spent",
+                "Impressions",
+                "Reach",
+                "Link Clicks",
+                "Website Purchases",
+                "Purchase ROAS",
+                "Purchase Conversion Value",
+              ].map((hint) => (
+                <span
+                  key={hint}
+                  className="text-xs rounded-full border px-2 py-1"
+                  style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+                >
+                  {hint}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Dashboard */}
+        {analyzed.length > 0 && (
+          <>
+            {/* Decision summary */}
+            <div className="flex flex-wrap gap-3 items-center">
+              <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                {analyzed.length} {analyzed.length === 1 ? "campaña analizada" : "campañas analizadas"}
+              </span>
+              {(["SCALE", "MONITOR", "OPTIMIZE", "TEST", "PAUSE"] as const).map((d) =>
+                decisionCounts[d] > 0 ? (
+                  <div key={d} className="flex items-center gap-1.5">
+                    <DecisionBadge decision={d} />
+                    <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                      ×{decisionCounts[d]}
+                    </span>
+                  </div>
+                ) : null
+              )}
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+              <KpiCard
+                label="Gasto total"
+                value={formatCurrency(totals.spend)}
+                icon={<DollarSign className="w-4 h-4" />}
+                highlight
+              />
+              <KpiCard
+                label="ROAS"
+                value={totals.roas > 0 ? formatRoas(totals.roas) : "—"}
+                icon={<TrendingUp className="w-4 h-4" />}
+                trend={
+                  totals.roas > 0
+                    ? totals.roas >= targets.roas
+                      ? "up"
+                      : "down"
+                    : "neutral"
+                }
+                sub={`Obj: ${targets.roas}x`}
+              />
+              <KpiCard
+                label="CPA"
+                value={totals.cpa > 0 ? formatCurrency(totals.cpa) : "—"}
+                icon={<ShoppingCart className="w-4 h-4" />}
+                trend={
+                  totals.cpa > 0
+                    ? totals.cpa <= targets.cpa
+                      ? "up"
+                      : "down"
+                    : "neutral"
+                }
+                sub={`Obj: $${targets.cpa}`}
+              />
+              <KpiCard
+                label="CTR"
+                value={formatPercent(totals.ctr)}
+                icon={<MousePointerClick className="w-4 h-4" />}
+                trend={totals.ctr >= targets.ctr ? "up" : "down"}
+                sub={`Obj: ${targets.ctr}%`}
+              />
+              <KpiCard
+                label="CPM"
+                value={formatCurrency(totals.cpm)}
+                icon={<Zap className="w-4 h-4" />}
+              />
+              <KpiCard
+                label="Alcance"
+                value={formatNumber(totals.reach)}
+                icon={<Users className="w-4 h-4" />}
+                sub={`Freq. ${totals.avgFreq.toFixed(1)}`}
+              />
+              <KpiCard
+                label="Conversiones"
+                value={formatNumber(totals.conversions)}
+                icon={<ShoppingCart className="w-4 h-4" />}
+              />
+              <KpiCard
+                label="Valor conv."
+                value={formatCurrency(totals.conversionValue)}
+                icon={<DollarSign className="w-4 h-4" />}
+              />
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-1 border-b" style={{ borderColor: "var(--border)" }}>
+              {(["table", "charts"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className="px-4 py-2 text-sm font-medium transition-all -mb-px border-b-2"
+                  style={{
+                    borderBottomColor:
+                      activeTab === tab ? "var(--primary)" : "transparent",
+                    color:
+                      activeTab === tab ? "var(--primary)" : "var(--muted-foreground)",
+                  }}
+                >
+                  {tab === "table" ? "Tabla de campañas" : "Gráficos"}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === "table" && <CampaignTable data={analyzed} />}
+            {activeTab === "charts" && <PerformanceChart data={analyzed} />}
+          </>
+        )}
+      </main>
+
+      <footer
+        className="mt-auto border-t py-4 text-center text-xs"
+        style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+      >
+        Paid Media Analyzer · Meta Ads · 2025
+      </footer>
+    </div>
+  );
+}
