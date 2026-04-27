@@ -3,6 +3,7 @@ export interface MetaCampaign {
   name: string;
   objective?: string;
   status: "ACTIVE" | "PAUSED" | "ARCHIVED" | string;
+  date?: string; // ISO date string YYYY-MM-DD
   spend: number;
   impressions: number;
   reach: number;

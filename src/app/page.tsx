@@ -13,14 +13,20 @@ import { PerformanceChart } from "@/components/PerformanceChart";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { DecisionBadge } from "@/components/DecisionBadge";
 import { ReportsPanel } from "@/components/ReportsPanel";
+import { GitHubSettings } from "@/components/GitHubSettings";
+import { InReportTrendChart } from "@/components/TrendChart";
 import { useReports } from "@/lib/useReports";
+import type { GitHubConfig } from "@/lib/githubStorage";
 import { nanoid } from "@/lib/utils";
 import {
   BarChart3, DollarSign, TrendingUp, Users,
   MousePointerClick, ShoppingCart, Zap, Trash2,
-  BookMarked, Save,
+  BookMarked, Save, Loader2,
 } from "lucide-react";
-import { formatCurrency, formatPercent, formatRoas, formatNumber } from "@/lib/utils";
+import {
+  formatCurrencyCompact, formatCompact,
+  formatPercent, formatRoas,
+} from "@/lib/utils";
 
 type MainTab = "analysis" | "reports";
 type AnalysisTab = "table" | "charts";
@@ -33,8 +39,9 @@ export default function Dashboard() {
   const [analysisTab, setAnalysisTab] = useState<AnalysisTab>("table");
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  const [githubConfig, setGithubConfig] = useState<GitHubConfig | null>(null);
 
-  const { reports, save, remove, clear } = useReports();
+  const { reports, save, remove, clear, syncing } = useReports(githubConfig);
 
   const analyzed = useMemo<CampaignAnalysis[]>(
     () => campaigns.map((c) => analyze(c, targets)),
@@ -82,7 +89,7 @@ export default function Dashboard() {
     save(report);
     setSavedMsg(`"${name}" guardado`);
     setTimeout(() => { setSaving(false); setSavedMsg(""); }, 2500);
-  }, [analyzed, targets, totals, decisionCounts, save]);
+  }, [analyzed, targets, totals, decisionCounts, labels, save]);
 
   return (
     <div className="min-h-screen" style={{ background: "var(--background)" }}>
@@ -131,6 +138,12 @@ export default function Dashboard() {
               </button>
             </div>
 
+            {syncing && (
+              <span className="flex items-center gap-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando…
+              </span>
+            )}
+
             {analyzed.length > 0 && mainTab === "analysis" && (
               <>
                 {savedMsg ? (
@@ -145,7 +158,7 @@ export default function Dashboard() {
                   </button>
                 )}
                 <button
-                  onClick={() => setCampaigns([])}
+                  onClick={() => { setCampaigns([]); setLabels({}); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition-all"
                   style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
                 >
@@ -210,14 +223,14 @@ export default function Dashboard() {
                   const L = { ...DEFAULT_LABELS, ...labels };
                   return (
                     <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
-                      <KpiCard label={L.spend ?? "Gasto"} value={formatCurrency(totals.spend)} icon={<DollarSign className="w-4 h-4" />} highlight />
+                      <KpiCard label={L.spend ?? "Gasto"} value={formatCurrencyCompact(totals.spend)} icon={<DollarSign className="w-4 h-4" />} highlight />
                       <KpiCard label={L.roas ?? "ROAS"} value={totals.roas > 0 ? formatRoas(totals.roas) : "—"} icon={<TrendingUp className="w-4 h-4" />} trend={totals.roas > 0 ? (totals.roas >= targets.roas ? "up" : "down") : "neutral"} sub={`Obj: ${targets.roas}x`} />
-                      <KpiCard label={L.cpa ?? "CPA"} value={totals.cpa > 0 ? formatCurrency(totals.cpa) : "—"} icon={<ShoppingCart className="w-4 h-4" />} trend={totals.cpa > 0 ? (totals.cpa <= targets.cpa ? "up" : "down") : "neutral"} sub={`Obj: $${targets.cpa}`} />
+                      <KpiCard label={L.cpa ?? "CPA"} value={totals.cpa > 0 ? formatCurrencyCompact(totals.cpa) : "—"} icon={<ShoppingCart className="w-4 h-4" />} trend={totals.cpa > 0 ? (totals.cpa <= targets.cpa ? "up" : "down") : "neutral"} sub={`Obj: $${targets.cpa}`} />
                       <KpiCard label={L.ctr ?? "CTR"} value={formatPercent(totals.ctr)} icon={<MousePointerClick className="w-4 h-4" />} trend={totals.ctr >= targets.ctr ? "up" : "down"} sub={`Obj: ${targets.ctr}%`} />
-                      <KpiCard label={L.cpm ?? "CPM"} value={formatCurrency(totals.cpm)} icon={<Zap className="w-4 h-4" />} />
-                      <KpiCard label={L.reach ?? "Alcance"} value={formatNumber(totals.reach)} icon={<Users className="w-4 h-4" />} sub={`${L.frequency ?? "Freq."} ${totals.avgFreq.toFixed(1)}`} />
-                      <KpiCard label={L.conversions ?? "Conversiones"} value={formatNumber(totals.conversions)} icon={<ShoppingCart className="w-4 h-4" />} />
-                      <KpiCard label={L.conversionValue ?? "Valor conv."} value={formatCurrency(totals.conversionValue)} icon={<DollarSign className="w-4 h-4" />} />
+                      <KpiCard label={L.cpm ?? "CPM"} value={formatCurrencyCompact(totals.cpm)} icon={<Zap className="w-4 h-4" />} />
+                      <KpiCard label={L.reach ?? "Alcance"} value={formatCompact(totals.reach)} icon={<Users className="w-4 h-4" />} sub={`${L.frequency ?? "Freq."} ${totals.avgFreq.toFixed(1)}`} />
+                      <KpiCard label={L.conversions ?? "Conversiones"} value={formatCompact(totals.conversions)} icon={<ShoppingCart className="w-4 h-4" />} />
+                      <KpiCard label={L.conversionValue ?? "Valor conv."} value={formatCurrencyCompact(totals.conversionValue)} icon={<DollarSign className="w-4 h-4" />} />
                     </div>
                   );
                 })()}
@@ -232,7 +245,12 @@ export default function Dashboard() {
                 </div>
 
                 {analysisTab === "table" && <CampaignTable data={analyzed} labels={labels} />}
-                {analysisTab === "charts" && <PerformanceChart data={analyzed} />}
+                {analysisTab === "charts" && (
+                  <div className="flex flex-col gap-4">
+                    <PerformanceChart data={analyzed} />
+                    <InReportTrendChart campaigns={analyzed} />
+                  </div>
+                )}
               </>
             )}
           </>
@@ -240,7 +258,10 @@ export default function Dashboard() {
 
         {/* REPORTS TAB */}
         {mainTab === "reports" && (
-          <ReportsPanel reports={reports} onDelete={remove} onClear={clear} />
+          <div className="flex flex-col gap-4">
+            <GitHubSettings onConfigChange={setGithubConfig} />
+            <ReportsPanel reports={reports} onDelete={remove} onClear={clear} />
+          </div>
         )}
       </main>
 

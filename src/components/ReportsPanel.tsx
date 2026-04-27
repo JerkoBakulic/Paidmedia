@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import type { SavedReport } from "@/types/report";
 import { ComparisonChart, CampaignComparisonChart } from "./ComparisonChart";
+import { CrossReportTrendChart } from "./TrendChart";
 import { exportReportCsv, exportComparisonCsv } from "@/lib/exportCsv";
 import { DecisionBadge } from "./DecisionBadge";
 import { formatCurrency, formatRoas, formatPercent } from "@/lib/utils";
@@ -63,6 +64,9 @@ export function ReportsPanel({ reports, onDelete, onClear }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Cross-report trend chart */}
+      <CrossReportTrendChart reports={reports} />
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Search */}

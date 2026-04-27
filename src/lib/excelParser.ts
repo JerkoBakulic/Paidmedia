@@ -76,6 +76,15 @@ const FIELD_MAP: Record<string, keyof MetaCampaign> = {
   ctr: "ctr",
   cpc: "cpc",
 
+  // Fecha
+  "date": "date",
+  "day": "date",
+  "día": "date",
+  "fecha": "date",
+  "inicio del informe": "date",
+  "report date": "date",
+  "date start": "date",
+
   // Estado / entrega
   status: "status",
   estado: "status",
@@ -101,6 +110,24 @@ function normalizeHeader(h: string): string {
     .replace(/\s*\(costo por mil impresiones\)\s*/gi, " ") // quita descripción CPM
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function parseDate(v: unknown): string {
+  if (!v) return "";
+  if (typeof v === "number") {
+    // Excel serial date
+    const date = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return date.toISOString().slice(0, 10);
+  }
+  const s = String(v).trim();
+  // Try to parse common formats: DD/MM/YYYY, YYYY-MM-DD, MM/DD/YYYY
+  const parts = s.split(/[-/]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+    if (parseInt(parts[2]) > 31) return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+    return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+  }
+  return s;
 }
 
 function parseNumber(v: unknown): number {
@@ -151,6 +178,8 @@ export function parseExcel(buffer: ArrayBuffer): ParseResult {
         const val = row[header];
         if (field === "name" || field === "status" || field === "objective") {
           (campaign as unknown as Record<string, unknown>)[field] = String(val || "").trim();
+        } else if (field === "date") {
+          (campaign as unknown as Record<string, unknown>)[field] = parseDate(val);
         } else {
           (campaign as unknown as Record<string, unknown>)[field] = parseNumber(val);
         }
