@@ -1,0 +1,152 @@
+import * as XLSX from "xlsx";
+import type { MetaCampaign } from "@/types/meta";
+import { nanoid } from "./utils";
+
+const FIELD_MAP: Record<string, keyof MetaCampaign> = {
+  "campaign name": "name",
+  "ad set name": "name",
+  "ad name": "name",
+  nombre: "name",
+  campaña: "name",
+  "conjunto de anuncios": "name",
+  anuncio: "name",
+  amount_spent: "spend",
+  "amount spent": "spend",
+  "importe gastado": "spend",
+  gasto: "spend",
+  spend: "spend",
+  impressions: "impressions",
+  impresiones: "impressions",
+  reach: "reach",
+  alcance: "reach",
+  clicks: "clicks",
+  "link clicks": "clicks",
+  "clics en el enlace": "clicks",
+  clics: "clicks",
+  conversions: "conversions",
+  "website purchases": "conversions",
+  "compras en el sitio web": "conversions",
+  conversiones: "conversions",
+  "purchase roas (return on ad spend)": "roas",
+  "website purchase roas": "roas",
+  roas: "roas",
+  "conversion values": "conversionValue",
+  "purchase conversion value": "conversionValue",
+  "valor de conversión de compras": "conversionValue",
+  "valor de conversión": "conversionValue",
+  "conversion value": "conversionValue",
+  frequency: "frequency",
+  frecuencia: "frequency",
+  cpm: "cpm",
+  ctr: "ctr",
+  cpc: "cpc",
+  cpa: "cpa",
+  status: "status",
+  estado: "status",
+  objective: "objective",
+  objetivo: "objective",
+};
+
+function normalizeHeader(h: string): string {
+  return h.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function parseNumber(v: unknown): number {
+  if (v === null || v === undefined || v === "") return 0;
+  if (typeof v === "number") return v;
+  const s = String(v).replace(/[$,%\s]/g, "");
+  return parseFloat(s) || 0;
+}
+
+export function parseExcel(buffer: ArrayBuffer): MetaCampaign[] {
+  const wb = XLSX.read(buffer, { type: "array" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+
+  if (rows.length === 0) return [];
+
+  const headers = Object.keys(rows[0]);
+  const mapping: Record<string, keyof MetaCampaign> = {};
+
+  for (const h of headers) {
+    const norm = normalizeHeader(h);
+    if (FIELD_MAP[norm]) {
+      mapping[h] = FIELD_MAP[norm];
+    }
+  }
+
+  return rows
+    .filter((row) => Object.values(row).some((v) => v !== ""))
+    .map((row) => {
+      const campaign: MetaCampaign = {
+        id: nanoid(),
+        name: "",
+        status: "ACTIVE",
+        spend: 0,
+        impressions: 0,
+        reach: 0,
+        clicks: 0,
+        conversions: 0,
+        conversionValue: 0,
+        level: "campaign",
+      };
+
+      for (const [header, field] of Object.entries(mapping)) {
+        const val = row[header];
+        if (field === "name" || field === "status" || field === "objective") {
+          (campaign as unknown as Record<string, unknown>)[field] = String(val || "").trim();
+        } else {
+          (campaign as unknown as Record<string, unknown>)[field] = parseNumber(val);
+        }
+      }
+
+      if (!campaign.name) campaign.name = `Fila ${rows.indexOf(row) + 1}`;
+      return campaign;
+    })
+    .filter((c) => c.name && (c.spend > 0 || c.impressions > 0));
+}
+
+export function parsePaste(text: string): MetaCampaign[] {
+  const lines = text.trim().split("\n").filter(Boolean);
+  if (lines.length < 2) return [];
+
+  const delimiter = lines[0].includes("\t") ? "\t" : ",";
+  const headers = lines[0].split(delimiter).map((h) => h.replace(/"/g, "").trim());
+
+  const mapping: Record<number, keyof MetaCampaign> = {};
+  headers.forEach((h, i) => {
+    const norm = normalizeHeader(h);
+    if (FIELD_MAP[norm]) mapping[i] = FIELD_MAP[norm];
+  });
+
+  return lines
+    .slice(1)
+    .map((line) => {
+      const cells = line.split(delimiter).map((c) => c.replace(/"/g, "").trim());
+      const campaign: MetaCampaign = {
+        id: nanoid(),
+        name: "",
+        status: "ACTIVE",
+        spend: 0,
+        impressions: 0,
+        reach: 0,
+        clicks: 0,
+        conversions: 0,
+        conversionValue: 0,
+        level: "campaign",
+      };
+
+      for (const [idx, field] of Object.entries(mapping)) {
+        const val = cells[Number(idx)];
+        if (field === "name" || field === "status" || field === "objective") {
+          (campaign as unknown as Record<string, unknown>)[field] = val || "";
+        } else {
+          (campaign as unknown as Record<string, unknown>)[field] = parseNumber(val);
+        }
+      }
+
+      if (!campaign.name) campaign.name = `Fila ${lines.indexOf(line)}`;
+      return campaign;
+    })
+    .filter((c) => c.name && (c.spend > 0 || c.impressions > 0));
+}
