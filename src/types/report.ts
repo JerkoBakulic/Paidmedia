@@ -1,4 +1,4 @@
-import type { CampaignAnalysis, MetaTargets } from "./meta";
+import type { CampaignAnalysis, MetaTargets, MetaLabels } from "./meta";
 
 export interface ReportTotals {
   spend: number;
@@ -28,4 +28,5 @@ export interface SavedReport {
     TEST: number;
     PAUSE: number;
   };
+  labels?: MetaLabels;
 }

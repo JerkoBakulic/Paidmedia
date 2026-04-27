@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { MetaCampaign, InputMode } from "@/types/meta";
+import type { MetaCampaign, MetaLabels, InputMode } from "@/types/meta";
 import { parseExcel, parsePaste } from "@/lib/excelParser";
 import { Upload, ClipboardPaste, PenLine, X, AlertCircle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ const EMPTY_CAMPAIGN: Omit<MetaCampaign, "id" | "level"> = {
 };
 
 interface MetricsInputProps {
-  onData: (campaigns: MetaCampaign[]) => void;
+  onData: (campaigns: MetaCampaign[], labels: MetaLabels) => void;
 }
 
 export function MetricsInput({ onData }: MetricsInputProps) {
@@ -50,13 +50,13 @@ export function MetricsInput({ onData }: MetricsInputProps) {
       }
       try {
         const buf = await file.arrayBuffer();
-        const campaigns = parseExcel(buf);
+        const { campaigns, labels } = parseExcel(buf);
         if (campaigns.length === 0) {
           setError("No se encontraron campañas en el archivo. Verifica los encabezados.");
           return;
         }
         setSuccess(`${campaigns.length} campañas cargadas desde "${file.name}"`);
-        onData(campaigns);
+        onData(campaigns, labels);
       } catch {
         setError("Error al leer el archivo. Verifica que sea un Excel válido.");
       }
@@ -83,13 +83,13 @@ export function MetricsInput({ onData }: MetricsInputProps) {
   const handlePaste = () => {
     setError("");
     if (!pasteText.trim()) { setError("Pega las métricas primero."); return; }
-    const campaigns = parsePaste(pasteText);
+    const { campaigns, labels } = parsePaste(pasteText);
     if (campaigns.length === 0) {
       setError("No se pudieron detectar campañas. Asegúrate de incluir encabezados en la primera fila.");
       return;
     }
     setSuccess(`${campaigns.length} campañas cargadas desde el texto pegado`);
-    onData(campaigns);
+    onData(campaigns, labels);
     setPasteText("");
   };
 
@@ -101,13 +101,13 @@ export function MetricsInput({ onData }: MetricsInputProps) {
     setManualList(updated);
     setManual({ ...EMPTY_CAMPAIGN });
     setSuccess(`"${c.name}" agregado`);
-    onData(updated);
+    onData(updated, {});
   };
 
   const removeManual = (id: string) => {
     const updated = manualList.filter((c) => c.id !== id);
     setManualList(updated);
-    onData(updated);
+    onData(updated, {});
   };
 
   const tabBtn = (m: InputMode, icon: React.ReactNode, label: string) => (

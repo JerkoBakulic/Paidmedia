@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import type { MetaCampaign, MetaTargets, CampaignAnalysis } from "@/types/meta";
+import type { MetaCampaign, MetaTargets, CampaignAnalysis, MetaLabels } from "@/types/meta";
+import { DEFAULT_LABELS } from "@/types/meta";
 import type { SavedReport, ReportTotals } from "@/types/report";
 import { analyze, DEFAULT_TARGETS } from "@/lib/decisions";
 import { MetricsInput } from "@/components/MetricsInput";
@@ -26,6 +27,7 @@ type AnalysisTab = "table" | "charts";
 
 export default function Dashboard() {
   const [campaigns, setCampaigns] = useState<MetaCampaign[]>([]);
+  const [labels, setLabels] = useState<MetaLabels>({});
   const [targets, setTargets] = useState<MetaTargets>(DEFAULT_TARGETS);
   const [mainTab, setMainTab] = useState<MainTab>("analysis");
   const [analysisTab, setAnalysisTab] = useState<AnalysisTab>("table");
@@ -75,6 +77,7 @@ export default function Dashboard() {
       targets,
       totals,
       decisionCounts,
+      labels,
     };
     save(report);
     setSavedMsg(`"${name}" guardado`);
@@ -162,7 +165,7 @@ export default function Dashboard() {
           <>
             <section className="flex flex-col gap-3">
               <TargetsPanel targets={targets} onChange={setTargets} />
-              <MetricsInput onData={setCampaigns} />
+              <MetricsInput onData={(c, l) => { setCampaigns(c); if (Object.keys(l).length > 0) setLabels(l); }} />
             </section>
 
             {campaigns.length === 0 && (
@@ -202,16 +205,22 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
-                  <KpiCard label="Gasto total" value={formatCurrency(totals.spend)} icon={<DollarSign className="w-4 h-4" />} highlight />
-                  <KpiCard label="ROAS" value={totals.roas > 0 ? formatRoas(totals.roas) : "—"} icon={<TrendingUp className="w-4 h-4" />} trend={totals.roas > 0 ? (totals.roas >= targets.roas ? "up" : "down") : "neutral"} sub={`Obj: ${targets.roas}x`} />
-                  <KpiCard label="CPA" value={totals.cpa > 0 ? formatCurrency(totals.cpa) : "—"} icon={<ShoppingCart className="w-4 h-4" />} trend={totals.cpa > 0 ? (totals.cpa <= targets.cpa ? "up" : "down") : "neutral"} sub={`Obj: $${targets.cpa}`} />
-                  <KpiCard label="CTR" value={formatPercent(totals.ctr)} icon={<MousePointerClick className="w-4 h-4" />} trend={totals.ctr >= targets.ctr ? "up" : "down"} sub={`Obj: ${targets.ctr}%`} />
-                  <KpiCard label="CPM" value={formatCurrency(totals.cpm)} icon={<Zap className="w-4 h-4" />} />
-                  <KpiCard label="Alcance" value={formatNumber(totals.reach)} icon={<Users className="w-4 h-4" />} sub={`Freq. ${totals.avgFreq.toFixed(1)}`} />
-                  <KpiCard label="Conversiones" value={formatNumber(totals.conversions)} icon={<ShoppingCart className="w-4 h-4" />} />
-                  <KpiCard label="Valor conv." value={formatCurrency(totals.conversionValue)} icon={<DollarSign className="w-4 h-4" />} />
-                </div>
+                {/* KPI Cards — labels adaptados al Excel cargado */}
+                {(() => {
+                  const L = { ...DEFAULT_LABELS, ...labels };
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+                      <KpiCard label={L.spend ?? "Gasto"} value={formatCurrency(totals.spend)} icon={<DollarSign className="w-4 h-4" />} highlight />
+                      <KpiCard label={L.roas ?? "ROAS"} value={totals.roas > 0 ? formatRoas(totals.roas) : "—"} icon={<TrendingUp className="w-4 h-4" />} trend={totals.roas > 0 ? (totals.roas >= targets.roas ? "up" : "down") : "neutral"} sub={`Obj: ${targets.roas}x`} />
+                      <KpiCard label={L.cpa ?? "CPA"} value={totals.cpa > 0 ? formatCurrency(totals.cpa) : "—"} icon={<ShoppingCart className="w-4 h-4" />} trend={totals.cpa > 0 ? (totals.cpa <= targets.cpa ? "up" : "down") : "neutral"} sub={`Obj: $${targets.cpa}`} />
+                      <KpiCard label={L.ctr ?? "CTR"} value={formatPercent(totals.ctr)} icon={<MousePointerClick className="w-4 h-4" />} trend={totals.ctr >= targets.ctr ? "up" : "down"} sub={`Obj: ${targets.ctr}%`} />
+                      <KpiCard label={L.cpm ?? "CPM"} value={formatCurrency(totals.cpm)} icon={<Zap className="w-4 h-4" />} />
+                      <KpiCard label={L.reach ?? "Alcance"} value={formatNumber(totals.reach)} icon={<Users className="w-4 h-4" />} sub={`${L.frequency ?? "Freq."} ${totals.avgFreq.toFixed(1)}`} />
+                      <KpiCard label={L.conversions ?? "Conversiones"} value={formatNumber(totals.conversions)} icon={<ShoppingCart className="w-4 h-4" />} />
+                      <KpiCard label={L.conversionValue ?? "Valor conv."} value={formatCurrency(totals.conversionValue)} icon={<DollarSign className="w-4 h-4" />} />
+                    </div>
+                  );
+                })()}
 
                 <div className="flex gap-1 border-b" style={{ borderColor: "var(--border)" }}>
                   {(["table", "charts"] as const).map((tab) => (
@@ -222,7 +231,7 @@ export default function Dashboard() {
                   ))}
                 </div>
 
-                {analysisTab === "table" && <CampaignTable data={analyzed} />}
+                {analysisTab === "table" && <CampaignTable data={analyzed} labels={labels} />}
                 {analysisTab === "charts" && <PerformanceChart data={analyzed} />}
               </>
             )}

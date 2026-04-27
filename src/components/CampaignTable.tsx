@@ -1,6 +1,7 @@
 "use client";
 
-import type { CampaignAnalysis } from "@/types/meta";
+import type { CampaignAnalysis, MetaLabels } from "@/types/meta";
+import { DEFAULT_LABELS } from "@/types/meta";
 import { DecisionBadge } from "./DecisionBadge";
 import { formatCurrency, formatNumber, formatPercent, formatRoas } from "@/lib/utils";
 import { ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
@@ -11,6 +12,7 @@ type SortKey = keyof CampaignAnalysis;
 
 interface CampaignTableProps {
   data: CampaignAnalysis[];
+  labels?: MetaLabels;
 }
 
 const SCORE_COLOR = (s: number) => {
@@ -21,7 +23,8 @@ const SCORE_COLOR = (s: number) => {
   return "text-red-400";
 };
 
-export function CampaignTable({ data }: CampaignTableProps) {
+export function CampaignTable({ data, labels = {} }: CampaignTableProps) {
+  const L = { ...DEFAULT_LABELS, ...labels };
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -66,16 +69,16 @@ export function CampaignTable({ data }: CampaignTableProps) {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: "var(--accent)", borderBottom: "1px solid var(--border)" }}>
-              {th("Campaña", "name")}
+              {th(L.name ?? "Campaña", "name")}
               {th("Decisión", "decision")}
               {th("Score", "score")}
-              {th("Gasto", "spend")}
-              {th("ROAS", "roas")}
-              {th("CPA", "cpa")}
-              {th("CTR", "ctr")}
-              {th("CPM", "cpm")}
-              {th("Freq.", "frequency")}
-              {th("Conv.", "conversions")}
+              {th(L.spend ?? "Gasto", "spend")}
+              {th(L.roas ?? "ROAS", "roas")}
+              {th(L.cpa ?? "CPA", "cpa")}
+              {th(L.ctr ?? "CTR", "ctr")}
+              {th(L.cpm ?? "CPM", "cpm")}
+              {th(L.frequency ?? "Frecuencia", "frequency")}
+              {th(L.conversions ?? "Conv.", "conversions")}
               <th className="px-3 py-2.5 text-xs font-semibold text-right" style={{ color: "var(--muted-foreground)" }}>
                 Alertas
               </th>

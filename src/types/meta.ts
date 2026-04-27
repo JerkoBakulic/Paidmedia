@@ -43,3 +43,21 @@ export interface MetricConfig {
   format: "currency" | "percent" | "number" | "text";
   description: string;
 }
+
+// Labels originales del Excel — se usan para mostrar los títulos tal como vienen
+export type MetaLabels = Partial<Record<keyof MetaCampaign, string>>;
+
+export const DEFAULT_LABELS: MetaLabels = {
+  name: "Campaña",
+  spend: "Gasto",
+  impressions: "Impresiones",
+  reach: "Alcance",
+  clicks: "Clics",
+  conversions: "Conversiones",
+  conversionValue: "Valor conv.",
+  roas: "ROAS",
+  cpa: "CPA",
+  ctr: "CTR",
+  cpm: "CPM",
+  frequency: "Frecuencia",
+};
