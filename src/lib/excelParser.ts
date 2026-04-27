@@ -1,6 +1,11 @@
 import * as XLSX from "xlsx";
-import type { MetaCampaign } from "@/types/meta";
+import type { MetaCampaign, MetaLabels } from "@/types/meta";
 import { nanoid } from "./utils";
+
+export interface ParseResult {
+  campaigns: MetaCampaign[];
+  labels: MetaLabels;
+}
 
 const FIELD_MAP: Record<string, keyof MetaCampaign> = {
   // Nombre / campaign name
@@ -105,24 +110,28 @@ function parseNumber(v: unknown): number {
   return parseFloat(s) || 0;
 }
 
-export function parseExcel(buffer: ArrayBuffer): MetaCampaign[] {
+export function parseExcel(buffer: ArrayBuffer): ParseResult {
   const wb = XLSX.read(buffer, { type: "array" });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
 
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return { campaigns: [], labels: {} };
 
   const headers = Object.keys(rows[0]);
   const mapping: Record<string, keyof MetaCampaign> = {};
+  const labels: MetaLabels = {};
 
   for (const h of headers) {
     const norm = normalizeHeader(h);
     if (FIELD_MAP[norm]) {
-      mapping[h] = FIELD_MAP[norm];
+      const field = FIELD_MAP[norm];
+      mapping[h] = field;
+      // Guarda el título original solo si aún no fue capturado
+      if (!labels[field]) labels[field] = h.trim();
     }
   }
 
-  return rows
+  const campaigns = rows
     .filter((row) => Object.values(row).some((v) => v !== ""))
     .map((row) => {
       const campaign: MetaCampaign = {
@@ -151,22 +160,30 @@ export function parseExcel(buffer: ArrayBuffer): MetaCampaign[] {
       return campaign;
     })
     .filter((c) => c.name && (c.spend > 0 || c.impressions > 0));
+
+  return { campaigns, labels };
 }
 
-export function parsePaste(text: string): MetaCampaign[] {
+export function parsePaste(text: string): ParseResult {
   const lines = text.trim().split("\n").filter(Boolean);
-  if (lines.length < 2) return [];
+  if (lines.length < 2) return { campaigns: [], labels: {} };
 
   const delimiter = lines[0].includes("\t") ? "\t" : ",";
   const headers = lines[0].split(delimiter).map((h) => h.replace(/"/g, "").trim());
 
   const mapping: Record<number, keyof MetaCampaign> = {};
+  const labels: MetaLabels = {};
+
   headers.forEach((h, i) => {
     const norm = normalizeHeader(h);
-    if (FIELD_MAP[norm]) mapping[i] = FIELD_MAP[norm];
+    if (FIELD_MAP[norm]) {
+      const field = FIELD_MAP[norm];
+      mapping[i] = field;
+      if (!labels[field]) labels[field] = h.trim();
+    }
   });
 
-  return lines
+  const campaigns = lines
     .slice(1)
     .map((line) => {
       const cells = line.split(delimiter).map((c) => c.replace(/"/g, "").trim());
@@ -196,4 +213,6 @@ export function parsePaste(text: string): MetaCampaign[] {
       return campaign;
     })
     .filter((c) => c.name && (c.spend > 0 || c.impressions > 0));
+
+  return { campaigns, labels };
 }
