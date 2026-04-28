@@ -18,6 +18,9 @@ export interface MetaCampaign {
   roas?: number;
   level: "campaign" | "adset" | "ad";
   parentName?: string;
+  placement?: string;
+  device?: string;
+  customTargets?: Partial<MetaTargets>;
 }
 
 export interface MetaTargets {

@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { SavedReport } from "@/types/report";
+import type { SavedReport, Annotation } from "@/types/report";
 import { ComparisonChart, CampaignComparisonChart } from "./ComparisonChart";
 import { CrossReportTrendChart } from "./TrendChart";
 import { exportReportCsv, exportComparisonCsv } from "@/lib/exportCsv";
+import { generateClientReport } from "@/lib/generateReport";
 import { DecisionBadge } from "./DecisionBadge";
 import { formatCurrency, formatRoas, formatPercent } from "@/lib/utils";
 import {
   Search, Trash2, Download, BarChart2, CheckSquare,
-  Square, FileDown, Calendar, TrendingUp, X,
+  Square, FileDown, Calendar, TrendingUp, X, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,10 @@ export function ReportsPanel({ reports, onDelete, onClear }: Props) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [view, setView] = useState<"list" | "compare">("list");
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+
+  const handleAddAnnotation = (a: Annotation) => setAnnotations((prev) => [...prev, a]);
+  const handleRemoveAnnotation = (id: string) => setAnnotations((prev) => prev.filter((a) => a.id !== id));
 
   const filtered = useMemo(() => {
     if (!query.trim()) return reports;
@@ -64,8 +69,13 @@ export function ReportsPanel({ reports, onDelete, onClear }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Cross-report trend chart */}
-      <CrossReportTrendChart reports={reports} />
+      {/* Cross-report trend chart with annotations */}
+      <CrossReportTrendChart
+        reports={reports}
+        annotations={annotations}
+        onAddAnnotation={handleAddAnnotation}
+        onRemoveAnnotation={handleRemoveAnnotation}
+      />
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
@@ -208,6 +218,14 @@ export function ReportsPanel({ reports, onDelete, onClear }: Props) {
 
                   {/* Actions */}
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => generateClientReport(r)}
+                      title="Reporte para cliente (PDF)"
+                      className="flex items-center justify-center w-8 h-8 rounded-lg border hover:bg-blue-500/10 hover:border-blue-500/30 hover:text-blue-400 transition"
+                      style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => exportReportCsv(r)}
                       title="Descargar CSV"

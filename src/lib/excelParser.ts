@@ -98,6 +98,16 @@ const FIELD_MAP: Record<string, keyof MetaCampaign> = {
   objetivo: "objective",
   "indicador de resultado": "objective",
   "result indicator": "objective",
+
+  // Placement / dispositivo
+  placement: "placement",
+  "publisher platform": "placement",
+  "plataforma del editor": "placement",
+  "ad placement": "placement",
+  "ubicación del anuncio": "placement",
+  device: "device",
+  "impression device": "device",
+  dispositivo: "device",
 };
 
 // Normaliza el encabezado: minúsculas, sin espacios dobles,

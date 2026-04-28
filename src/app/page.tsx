@@ -15,7 +15,15 @@ import { DecisionBadge } from "@/components/DecisionBadge";
 import { ReportsPanel } from "@/components/ReportsPanel";
 import { GitHubSettings } from "@/components/GitHubSettings";
 import { InReportTrendChart } from "@/components/TrendChart";
+import { BudgetPacing } from "@/components/BudgetPacing";
+import { PlacementBreakdown } from "@/components/PlacementBreakdown";
+import { BenchmarksPanel } from "@/components/BenchmarksPanel";
+import { MetaApiConnect } from "@/components/MetaApiConnect";
+import { ClientSwitcher } from "@/components/ClientSwitcher";
+import { AlertsBell } from "@/components/AlertsBell";
 import { useReports } from "@/lib/useReports";
+import { useWorkspace } from "@/lib/useWorkspace";
+import { computeAlerts } from "@/lib/alerts";
 import type { GitHubConfig } from "@/lib/githubStorage";
 import { nanoid } from "@/lib/utils";
 import {
@@ -41,12 +49,35 @@ export default function Dashboard() {
   const [savedMsg, setSavedMsg] = useState("");
   const [githubConfig, setGithubConfig] = useState<GitHubConfig | null>(null);
 
-  const { reports, save, remove, clear, syncing } = useReports(githubConfig);
+  const {
+    workspaces,
+    activeWorkspace,
+    createWorkspace,
+    switchWorkspace,
+    renameWorkspace,
+    deleteWorkspace,
+  } = useWorkspace();
 
+  const { reports, save, remove, clear, syncing } = useReports(githubConfig, activeWorkspace.id);
+
+  const alerts = useMemo(() => computeAlerts(reports), [reports]);
+
+  // Analyzed campaigns con soporte de customTargets por campaña
   const analyzed = useMemo<CampaignAnalysis[]>(
     () => campaigns.map((c) => analyze(c, targets)),
     [campaigns, targets]
   );
+
+  // Permite actualizar customTargets de una campaña y re-analizar
+  const handleUpdateCampaignTargets = useCallback((id: string, customTargets: Partial<MetaTargets>) => {
+    setCampaigns((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? { ...c, customTargets: Object.keys(customTargets).length > 0 ? customTargets : undefined }
+          : c
+      )
+    );
+  }, []);
 
   const totals = useMemo<ReportTotals>(() => {
     const spend = analyzed.reduce((s, c) => s + c.spend, 0);
@@ -107,6 +138,14 @@ export default function Dashboard() {
               <h1 className="text-sm font-bold leading-tight">Paid Media Analyzer</h1>
               <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Meta Ads · Análisis de campañas</p>
             </div>
+            <ClientSwitcher
+              workspaces={workspaces}
+              active={activeWorkspace}
+              onCreate={createWorkspace}
+              onSwitch={switchWorkspace}
+              onRename={renameWorkspace}
+              onDelete={deleteWorkspace}
+            />
           </div>
 
           <div className="flex items-center gap-2">
@@ -137,6 +176,8 @@ export default function Dashboard() {
                 )}
               </button>
             </div>
+
+            <AlertsBell alerts={alerts} />
 
             {syncing && (
               <span className="flex items-center gap-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
@@ -178,6 +219,7 @@ export default function Dashboard() {
           <>
             <section className="flex flex-col gap-3">
               <TargetsPanel targets={targets} onChange={setTargets} />
+              <MetaApiConnect onData={(c) => { setCampaigns(c); setLabels({}); }} />
               <MetricsInput onData={(c, l) => { setCampaigns(c); if (Object.keys(l).length > 0) setLabels(l); }} />
             </section>
 
@@ -189,7 +231,7 @@ export default function Dashboard() {
                 <div>
                   <p className="font-semibold text-lg">Sin datos de campañas</p>
                   <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
-                    Sube un Excel de Meta Ads Manager, pega las métricas, o ingrésalas manualmente
+                    Conectá la Meta API, subí un Excel o pegá las métricas
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center max-w-lg">
@@ -204,6 +246,9 @@ export default function Dashboard() {
 
             {analyzed.length > 0 && (
               <>
+                {/* Budget pacing */}
+                <BudgetPacing totalSpend={totals.spend} />
+
                 <div className="flex flex-wrap gap-3 items-center">
                   <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
                     {analyzed.length} {analyzed.length === 1 ? "campaña analizada" : "campañas analizadas"}
@@ -218,7 +263,7 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                {/* KPI Cards — labels adaptados al Excel cargado */}
+                {/* KPI Cards */}
                 {(() => {
                   const L = { ...DEFAULT_LABELS, ...labels };
                   return (
@@ -235,6 +280,9 @@ export default function Dashboard() {
                   );
                 })()}
 
+                {/* Benchmarks */}
+                <BenchmarksPanel totals={totals} targets={targets} />
+
                 <div className="flex gap-1 border-b" style={{ borderColor: "var(--border)" }}>
                   {(["table", "charts"] as const).map((tab) => (
                     <button key={tab} onClick={() => setAnalysisTab(tab)} className="px-4 py-2 text-sm font-medium transition-all -mb-px border-b-2"
@@ -244,10 +292,17 @@ export default function Dashboard() {
                   ))}
                 </div>
 
-                {analysisTab === "table" && <CampaignTable data={analyzed} labels={labels} />}
+                {analysisTab === "table" && (
+                  <CampaignTable
+                    data={analyzed}
+                    labels={labels}
+                    onUpdateTargets={handleUpdateCampaignTargets}
+                  />
+                )}
                 {analysisTab === "charts" && (
                   <div className="flex flex-col gap-4">
                     <PerformanceChart data={analyzed} />
+                    <PlacementBreakdown data={analyzed} />
                     <InReportTrendChart campaigns={analyzed} />
                   </div>
                 )}

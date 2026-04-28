@@ -1,14 +1,16 @@
 "use client";
 
 import type { CampaignAnalysis } from "@/types/meta";
-import type { SavedReport } from "@/types/report";
+import type { SavedReport, Annotation } from "@/types/report";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
+  Tooltip, ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Plus, Trash2 } from "lucide-react";
+import { nanoid } from "@/lib/utils";
 
 type Metric = "roas" | "cpa" | "ctr" | "cpm" | "spend" | "conversions";
 
@@ -122,13 +124,21 @@ export function InReportTrendChart({ campaigns }: InReportTrendProps) {
 // --- Gráfico de tendencia ENTRE reportes guardados ---
 interface CrossReportTrendProps {
   reports: SavedReport[];
+  annotations?: Annotation[];
+  onAddAnnotation?: (a: Annotation) => void;
+  onRemoveAnnotation?: (id: string) => void;
 }
 
-export function CrossReportTrendChart({ reports: rawReports }: CrossReportTrendProps) {
+const ANNOTATION_COLORS = ["#60a5fa", "#10b981", "#f97316", "#a78bfa", "#f87171"];
+
+export function CrossReportTrendChart({ reports: rawReports, annotations = [], onAddAnnotation, onRemoveAnnotation }: CrossReportTrendProps) {
   const { theme } = useTheme();
   const gridColor = theme === "dark" ? "#1e293b" : "#e2e8f0";
   const textColor = theme === "dark" ? "#94a3b8" : "#64748b";
   const [metrics, setMetrics] = useState<Metric[]>(["roas", "cpa"]);
+  const [addingNote, setAddingNote] = useState(false);
+  const [noteDate, setNoteDate] = useState("");
+  const [noteText, setNoteText] = useState("");
 
   const reports = [...rawReports].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
@@ -140,6 +150,7 @@ export function CrossReportTrendChart({ reports: rawReports }: CrossReportTrendP
 
   const data = reports.map((r) => ({
     date: new Date(r.createdAt).toLocaleDateString("es", { day: "2-digit", month: "short" }),
+    fullDate: r.createdAt.slice(0, 10),
     name: r.name,
     roas: parseFloat(r.totals.roas.toFixed(2)),
     cpa: parseFloat(r.totals.cpa.toFixed(2)),
@@ -153,11 +164,24 @@ export function CrossReportTrendChart({ reports: rawReports }: CrossReportTrendP
     setMetrics((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
   };
 
+  const handleAddNote = () => {
+    if (!noteDate || !noteText.trim() || !onAddAnnotation) return;
+    onAddAnnotation({
+      id: nanoid(),
+      date: noteDate,
+      text: noteText.trim(),
+      color: ANNOTATION_COLORS[annotations.length % ANNOTATION_COLORS.length],
+    });
+    setNoteDate("");
+    setNoteText("");
+    setAddingNote(false);
+  };
+
   return (
     <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <p className="text-sm font-semibold">Evolución de métricas entre reportes</p>
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex gap-1 flex-wrap items-center">
           {(Object.keys(METRIC_CONFIG) as Metric[]).map((m) => (
             <button
               key={m}
@@ -172,8 +196,39 @@ export function CrossReportTrendChart({ reports: rawReports }: CrossReportTrendP
               {METRIC_CONFIG[m].label}
             </button>
           ))}
+          {onAddAnnotation && (
+            <button
+              onClick={() => setAddingNote(!addingNote)}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs border hover:bg-accent transition"
+              style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+            >
+              <Plus className="w-3 h-3" /> Nota
+            </button>
+          )}
         </div>
       </div>
+
+      {addingNote && (
+        <div className="flex gap-2 mb-3 flex-wrap">
+          <input
+            type="date"
+            value={noteDate}
+            onChange={(e) => setNoteDate(e.target.value)}
+            className="rounded border px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-500/40"
+            style={{ background: "var(--accent)", borderColor: "var(--border)" }}
+          />
+          <input
+            placeholder="Nota (ej: Cambio de creativo)"
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }}
+            className="flex-1 rounded border px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-500/40"
+            style={{ background: "var(--accent)", borderColor: "var(--border)" }}
+          />
+          <button onClick={handleAddNote} className="px-3 py-1 rounded text-xs bg-blue-500 text-white">Agregar</button>
+        </div>
+      )}
+
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
@@ -181,6 +236,19 @@ export function CrossReportTrendChart({ reports: rawReports }: CrossReportTrendP
           <YAxis tick={{ fontSize: 10, fill: textColor }} tickLine={false} axisLine={false} />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: 10, color: textColor }} />
+          {annotations.map((a) => {
+            const matchedPoint = data.find((d) => d.fullDate === a.date);
+            if (!matchedPoint) return null;
+            return (
+              <ReferenceLine
+                key={a.id}
+                x={matchedPoint.date}
+                stroke={a.color}
+                strokeDasharray="4 2"
+                label={{ value: a.text, fill: a.color, fontSize: 10, position: "top" }}
+              />
+            );
+          })}
           {metrics.map((m) => (
             <Line
               key={m}
@@ -195,6 +263,27 @@ export function CrossReportTrendChart({ reports: rawReports }: CrossReportTrendP
           ))}
         </LineChart>
       </ResponsiveContainer>
+
+      {annotations.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-3">
+          {annotations.map((a) => (
+            <div
+              key={a.id}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-full border text-xs"
+              style={{ borderColor: a.color + "40", background: a.color + "10", color: a.color }}
+            >
+              <span>{a.date.slice(5)}</span>
+              <span>—</span>
+              <span>{a.text}</span>
+              {onRemoveAnnotation && (
+                <button onClick={() => onRemoveAnnotation(a.id)} className="opacity-60 hover:opacity-100">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
