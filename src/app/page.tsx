@@ -21,6 +21,7 @@ import { BenchmarksPanel } from "@/components/BenchmarksPanel";
 import { MetaApiConnect } from "@/components/MetaApiConnect";
 import { ClientSwitcher } from "@/components/ClientSwitcher";
 import { AlertsBell } from "@/components/AlertsBell";
+import { CreativeFatigueChart } from "@/components/CreativeFatigueChart";
 import { useReports } from "@/lib/useReports";
 import { useWorkspace } from "@/lib/useWorkspace";
 import { computeAlerts } from "@/lib/alerts";
@@ -302,6 +303,7 @@ export default function Dashboard() {
                 {analysisTab === "charts" && (
                   <div className="flex flex-col gap-4">
                     <PerformanceChart data={analyzed} />
+                    <CreativeFatigueChart data={analyzed} maxFrequency={targets.maxFrequency} targetCtr={targets.ctr} />
                     <PlacementBreakdown data={analyzed} />
                     <InReportTrendChart campaigns={analyzed} />
                   </div>
