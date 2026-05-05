@@ -30,8 +30,8 @@ import type { GitHubConfig } from "@/lib/githubStorage";
 import { nanoid } from "@/lib/utils";
 import {
   BarChart3, DollarSign, TrendingUp, Users,
-  MousePointerClick, ShoppingCart, Zap, Trash2,
-  BookMarked, Save, Loader2,
+  MousePointerClick, ShoppingCart, Zap,
+  BookMarked, Save, Loader2, Upload, RefreshCw,
 } from "lucide-react";
 import {
   formatCurrencyCompact, formatCompact,
@@ -50,7 +50,8 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [githubConfig, setGithubConfig] = useState<GitHubConfig | null>(null);
-  const [metaConnection, setMetaConnection] = useState<{ token: string; accountId: string } | null>(null);
+  const [metaConnection, setMetaConnection] = useState<{ token: string; accountId: string; accountName: string } | null>(null);
+  const [dataSource, setDataSource] = useState<"meta" | "excel" | null>(null);
 
   const {
     workspaces,
@@ -188,28 +189,6 @@ export default function Dashboard() {
               </span>
             )}
 
-            {analyzed.length > 0 && mainTab === "analysis" && (
-              <>
-                {savedMsg ? (
-                  <span className="text-xs text-emerald-400 font-medium">{savedMsg}</span>
-                ) : (
-                  <button
-                    onClick={handleSaveReport}
-                    disabled={saving}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition"
-                  >
-                    <Save className="w-3.5 h-3.5" /> Guardar reporte
-                  </button>
-                )}
-                <button
-                  onClick={() => { setCampaigns([]); setLabels({}); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition-all"
-                  style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Limpiar
-                </button>
-              </>
-            )}
             <ThemeToggle />
           </div>
         </div>
@@ -220,56 +199,97 @@ export default function Dashboard() {
         {/* ANALYSIS TAB */}
         {mainTab === "analysis" && (
           <>
-            <section className="flex flex-col gap-3">
-              <TargetsPanel targets={targets} onChange={setTargets} />
-              <MetaApiConnect
-                onData={(c) => { setCampaigns(c); setLabels({}); }}
-                onConnect={(token, accountId) => setMetaConnection({ token, accountId })}
-              />
-              <MetricsInput onData={(c, l) => { setCampaigns(c); if (Object.keys(l).length > 0) setLabels(l); }} />
-            </section>
-
+            {/* ── SIN DATOS: pantalla de inicio ── */}
             {campaigns.length === 0 && (
-              <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-                <div className="flex items-center justify-center w-16 h-16 rounded-2xl" style={{ background: "var(--accent)" }}>
-                  <BarChart3 className="w-8 h-8" style={{ color: "var(--muted-foreground)" }} />
-                </div>
-                <div>
-                  <p className="font-semibold text-lg">Sin datos de campañas</p>
-                  <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
-                    Conectá tu cuenta de Meta o subí un Excel exportado de Ads Manager
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col items-center gap-1 pt-6 text-center">
+                  <p className="text-2xl font-bold">¿Desde dónde cargamos los datos?</p>
+                  <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+                    Elegí una fuente para empezar el análisis
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2 justify-center max-w-lg">
-                  {["Campaign Name", "Amount Spent", "Impressions", "Reach", "Link Clicks", "Website Purchases", "Purchase ROAS", "Purchase Conversion Value"].map((hint) => (
-                    <span key={hint} className="text-xs rounded-full border px-2 py-1" style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}>
-                      {hint}
-                    </span>
-                  ))}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto w-full">
+                  {/* Opción 1: Meta API */}
+                  <MetaApiConnect
+                    defaultOpen
+                    onData={(c) => { setCampaigns(c); setLabels({}); setDataSource("meta"); }}
+                    onConnect={(token, accountId, accountName) => setMetaConnection({ token, accountId, accountName })}
+                  />
+                  {/* Opción 2: Excel */}
+                  <MetricsInput onData={(c, l) => { setCampaigns(c); setDataSource("excel"); if (Object.keys(l).length > 0) setLabels(l); }} />
+                </div>
+
+                <div className="flex justify-center">
+                  <TargetsPanel targets={targets} onChange={setTargets} />
                 </div>
               </div>
             )}
 
+            {/* ── CON DATOS: barra de fuente + análisis ── */}
             {analyzed.length > 0 && (
               <>
-                {/* Budget pacing */}
-                <BudgetPacing totalSpend={totals.spend} />
-
-                <div className="flex flex-wrap gap-3 items-center">
-                  <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-                    {analyzed.length} {analyzed.length === 1 ? "campaña analizada" : "campañas analizadas"}
-                  </span>
-                  {(["SCALE", "MONITOR", "OPTIMIZE", "TEST", "PAUSE"] as const).map((d) =>
-                    decisionCounts[d] > 0 ? (
-                      <div key={d} className="flex items-center gap-1.5">
-                        <DecisionBadge decision={d} />
-                        <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>×{decisionCounts[d]}</span>
-                      </div>
-                    ) : null
-                  )}
+                {/* Barra de fuente activa */}
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  <div className="flex items-center gap-2 text-sm font-medium flex-1">
+                    {dataSource === "meta"
+                      ? <Zap className="w-4 h-4 text-blue-400 shrink-0" />
+                      : <Upload className="w-4 h-4 shrink-0" style={{ color: "var(--muted-foreground)" }} />
+                    }
+                    {dataSource === "meta"
+                      ? <span>Meta API{metaConnection?.accountName ? ` · ${metaConnection.accountName}` : ""}</span>
+                      : <span>Excel importado</span>
+                    }
+                    <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: "var(--accent)", color: "var(--muted-foreground)" }}>
+                      {analyzed.length} {analyzed.length === 1 ? "campaña" : "campañas"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <TargetsPanel targets={targets} onChange={setTargets} />
+                    {savedMsg ? (
+                      <span className="text-xs text-emerald-400 font-medium">{savedMsg}</span>
+                    ) : (
+                      <button
+                        onClick={handleSaveReport}
+                        disabled={saving}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition"
+                      >
+                        <Save className="w-3.5 h-3.5" /> Guardar reporte
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setCampaigns([]); setLabels({}); setDataSource(null); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border hover:bg-accent/60 transition"
+                      style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Cambiar datos
+                    </button>
+                  </div>
                 </div>
 
-                {/* KPI Cards — solo muestra los que tienen datos reales */}
+                {/* Resumen de decisiones */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {(["SCALE", "MONITOR", "OPTIMIZE", "TEST", "PAUSE"] as const).map((d) => {
+                    const count = decisionCounts[d];
+                    const colors: Record<string, { bg: string; text: string; border: string }> = {
+                      SCALE:    { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20" },
+                      MONITOR:  { bg: "bg-blue-500/10",    text: "text-blue-400",    border: "border-blue-500/20" },
+                      OPTIMIZE: { bg: "bg-yellow-500/10",  text: "text-yellow-400",  border: "border-yellow-500/20" },
+                      TEST:     { bg: "bg-purple-500/10",  text: "text-purple-400",  border: "border-purple-500/20" },
+                      PAUSE:    { bg: "bg-red-500/10",     text: "text-red-400",     border: "border-red-500/20" },
+                    };
+                    const c = colors[d];
+                    const labels: Record<string, string> = { SCALE: "Escalar", MONITOR: "Monitorear", OPTIMIZE: "Optimizar", TEST: "Testear", PAUSE: "Pausar" };
+                    return (
+                      <div key={d} className={`flex flex-col items-center gap-1 rounded-xl border py-3 px-2 ${c.bg} ${c.border}`}>
+                        <span className={`text-2xl font-bold ${c.text}`}>{count}</span>
+                        <span className={`text-xs font-semibold ${c.text}`}>{labels[d]}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* KPI Cards */}
                 {(() => {
                   const L = { ...DEFAULT_LABELS, ...labels };
                   const hasConversions = totals.conversions > 0;
@@ -293,7 +313,7 @@ export default function Dashboard() {
                   );
                 })()}
 
-                {/* Benchmarks */}
+                <BudgetPacing totalSpend={totals.spend} />
                 <BenchmarksPanel totals={totals} targets={targets} />
 
                 <div className="flex gap-1 border-b" style={{ borderColor: "var(--border)" }}>
@@ -310,11 +330,7 @@ export default function Dashboard() {
                 </div>
 
                 {analysisTab === "table" && (
-                  <CampaignTable
-                    data={analyzed}
-                    labels={labels}
-                    onUpdateTargets={handleUpdateCampaignTargets}
-                  />
+                  <CampaignTable data={analyzed} labels={labels} onUpdateTargets={handleUpdateCampaignTargets} />
                 )}
                 {analysisTab === "charts" && (
                   <div className="flex flex-col gap-4">
