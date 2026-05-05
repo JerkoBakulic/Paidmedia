@@ -52,6 +52,7 @@ export default function Dashboard() {
   const [githubConfig, setGithubConfig] = useState<GitHubConfig | null>(null);
   const [metaConnection, setMetaConnection] = useState<{ token: string; accountId: string; accountName: string } | null>(null);
   const [dataSource, setDataSource] = useState<"meta" | "excel" | null>(null);
+  const [selectedSource, setSelectedSource] = useState<"meta" | "excel" | null>(null);
 
   const {
     workspaces,
@@ -201,28 +202,81 @@ export default function Dashboard() {
           <>
             {/* ── SIN DATOS: pantalla de inicio ── */}
             {campaigns.length === 0 && (
-              <div className="flex flex-col gap-6">
-                <div className="flex flex-col items-center gap-1 pt-6 text-center">
+              <div className="flex flex-col gap-6 max-w-2xl mx-auto w-full pt-6">
+
+                {/* Título y back */}
+                <div className="flex flex-col items-center gap-1 text-center">
+                  {selectedSource ? (
+                    <button
+                      onClick={() => setSelectedSource(null)}
+                      className="flex items-center gap-1.5 text-xs mb-3 hover:underline self-start"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      ← Elegir otra fuente
+                    </button>
+                  ) : null}
                   <p className="text-2xl font-bold">¿Desde dónde cargamos los datos?</p>
                   <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-                    Elegí una fuente para empezar el análisis
+                    {selectedSource ? "Configurá la conexión y los datos se cargarán automáticamente" : "Elegí una fuente para empezar el análisis"}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto w-full">
-                  {/* Opción 1: Meta API */}
+                {/* Dos tarjetas de elección */}
+                {!selectedSource && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setSelectedSource("meta")}
+                      className="flex flex-col items-center gap-3 rounded-xl border-2 p-6 text-center transition-all hover:border-blue-500 hover:bg-blue-500/5 group"
+                      style={{ borderColor: "var(--border)", background: "var(--card)" }}
+                    >
+                      <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/10 group-hover:bg-blue-500/20 transition">
+                        <Zap className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">Meta API</p>
+                        <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+                          Datos en tiempo real directo desde tu cuenta de Ads Manager
+                        </p>
+                      </div>
+                      <span className="text-xs font-semibold text-blue-400">Conectar →</span>
+                    </button>
+
+                    <button
+                      onClick={() => setSelectedSource("excel")}
+                      className="flex flex-col items-center gap-3 rounded-xl border-2 p-6 text-center transition-all hover:border-blue-500 hover:bg-blue-500/5 group"
+                      style={{ borderColor: "var(--border)", background: "var(--card)" }}
+                    >
+                      <div className="flex items-center justify-center w-12 h-12 rounded-xl group-hover:bg-accent/60 transition" style={{ background: "var(--accent)" }}>
+                        <Upload className="w-6 h-6" style={{ color: "var(--muted-foreground)" }} />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">Subir Excel</p>
+                        <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+                          Importá una exportación de Meta Ads Manager (.xlsx, .csv)
+                        </p>
+                      </div>
+                      <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>Seleccionar archivo →</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Fuente seleccionada */}
+                {selectedSource === "meta" && (
                   <MetaApiConnect
-                    defaultOpen
+                    standalone
                     onData={(c) => { setCampaigns(c); setLabels({}); setDataSource("meta"); }}
                     onConnect={(token, accountId, accountName) => setMetaConnection({ token, accountId, accountName })}
                   />
-                  {/* Opción 2: Excel */}
+                )}
+                {selectedSource === "excel" && (
                   <MetricsInput onData={(c, l) => { setCampaigns(c); setDataSource("excel"); if (Object.keys(l).length > 0) setLabels(l); }} />
-                </div>
+                )}
 
-                <div className="flex justify-center">
-                  <TargetsPanel targets={targets} onChange={setTargets} />
-                </div>
+                {!selectedSource && (
+                  <div className="flex justify-center">
+                    <TargetsPanel targets={targets} onChange={setTargets} />
+                  </div>
+                )}
               </div>
             )}
 
