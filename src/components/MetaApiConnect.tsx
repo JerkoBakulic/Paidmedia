@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { MetaCampaign } from "@/types/meta";
 import {
   fetchAdAccounts,
@@ -27,8 +27,12 @@ export function MetaApiConnect({ onData }: Props) {
   const [level, setLevel] = useState<"campaign" | "adset" | "ad">("campaign");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
-  // Carga las cuentas automáticamente al conectarse
+  const onDataRef = useRef(onData);
+  onDataRef.current = onData;
+
+  // Carga cuentas al conectarse
   useEffect(() => {
     if (!token) return;
     fetchAdAccounts(token)
@@ -39,20 +43,29 @@ export function MetaApiConnect({ onData }: Props) {
       .catch((e) => setError(e instanceof Error ? e.message : "Error al cargar cuentas"));
   }, [token]);
 
-  const loadInsights = async () => {
+  const retry = useCallback(() => setRetryCount((n) => n + 1), []);
+
+  // Auto-carga al cambiar cuenta, período o nivel
+  useEffect(() => {
     if (!token || !selectedAccount) return;
+    let cancelled = false;
     setLoading(true);
     setError("");
-    try {
-      const campaigns = await fetchCampaignInsights(token, selectedAccount, datePreset, level);
-      onData(campaigns);
-      setOpen(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al obtener datos");
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchCampaignInsights(token, selectedAccount, datePreset, level)
+      .then((campaigns) => {
+        if (!cancelled) {
+          onDataRef.current(campaigns);
+          setOpen(false);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Error al obtener datos");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [token, selectedAccount, datePreset, level, retryCount]);
 
   const isConnected = fbStatus === "connected" && !!token;
 
@@ -66,9 +79,15 @@ export function MetaApiConnect({ onData }: Props) {
           <Zap className="w-4 h-4 text-blue-400" />
           <span>Conectar Meta API</span>
           {isConnected ? (
-            <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-              Conectado
-            </span>
+            loading ? (
+              <span className="flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                <Loader2 className="w-3 h-3 animate-spin" /> Actualizando…
+              </span>
+            ) : (
+              <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                Conectado
+              </span>
+            )
           ) : (
             <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">
               Datos en tiempo real
@@ -84,7 +103,6 @@ export function MetaApiConnect({ onData }: Props) {
       {open && (
         <div className="px-4 pb-4 border-t flex flex-col gap-3" style={{ borderColor: "var(--border)" }}>
 
-          {/* Botón de login con Facebook */}
           {!isConnected ? (
             <div className="flex flex-col items-center gap-3 py-4">
               <p className="text-xs text-center" style={{ color: "var(--muted-foreground)" }}>
@@ -108,7 +126,6 @@ export function MetaApiConnect({ onData }: Props) {
             </div>
           ) : (
             <>
-              {/* Selector de cuenta, período y nivel */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium" style={{ color: "var(--muted-foreground)" }}>Cuenta</label>
@@ -119,9 +136,7 @@ export function MetaApiConnect({ onData }: Props) {
                     style={{ background: "var(--accent)", borderColor: "var(--border)", color: "var(--foreground)" }}
                   >
                     {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({a.currency})
-                      </option>
+                      <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
                     ))}
                   </select>
                 </div>
@@ -155,25 +170,22 @@ export function MetaApiConnect({ onData }: Props) {
                 </div>
               </div>
 
-              {error && <p className="text-xs text-red-400">{error}</p>}
+              {error && (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-red-400">{error}</p>
+                  <button
+                    onClick={retry}
+                    className="flex items-center gap-1 text-xs text-blue-400 hover:underline"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Reintentar
+                  </button>
+                </div>
+              )}
 
-              <div className="flex gap-2">
-                <button
-                  onClick={loadInsights}
-                  disabled={!selectedAccount || loading}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition",
-                    "bg-blue-500 hover:bg-blue-600 disabled:opacity-50"
-                  )}
-                >
-                  {loading
-                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Cargando...</>
-                    : <><RefreshCw className="w-4 h-4" /> Cargar campañas</>
-                  }
-                </button>
+              <div className="flex justify-end">
                 <button
                   onClick={logout}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs border hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition"
                   style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
                 >
                   <LogOut className="w-3.5 h-3.5" /> Desconectar

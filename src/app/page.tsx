@@ -264,19 +264,26 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                {/* KPI Cards */}
+                {/* KPI Cards — solo muestra los que tienen datos reales */}
                 {(() => {
                   const L = { ...DEFAULT_LABELS, ...labels };
+                  const hasConversions = totals.conversions > 0;
+                  const hasConvValue = totals.conversionValue > 0;
+                  const hasRoas = totals.roas > 0;
+                  const hasCtr = totals.ctr > 0;
+                  const hasCpm = totals.cpm > 0;
+                  const hasReach = totals.reach > 0;
+                  const hasFreq = totals.avgFreq > 0;
                   return (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+                    <div className="flex flex-wrap gap-3">
                       <KpiCard label={L.spend ?? "Gasto"} value={formatCurrencyCompact(totals.spend)} icon={<DollarSign className="w-4 h-4" />} highlight />
-                      <KpiCard label={L.roas ?? "ROAS"} value={totals.roas > 0 ? formatRoas(totals.roas) : "—"} icon={<TrendingUp className="w-4 h-4" />} trend={totals.roas > 0 ? (totals.roas >= targets.roas ? "up" : "down") : "neutral"} sub={`Obj: ${targets.roas}x`} />
-                      <KpiCard label={L.cpa ?? "CPA"} value={totals.cpa > 0 ? formatCurrencyCompact(totals.cpa) : "—"} icon={<ShoppingCart className="w-4 h-4" />} trend={totals.cpa > 0 ? (totals.cpa <= targets.cpa ? "up" : "down") : "neutral"} sub={`Obj: $${targets.cpa}`} />
-                      <KpiCard label={L.ctr ?? "CTR"} value={formatPercent(totals.ctr)} icon={<MousePointerClick className="w-4 h-4" />} trend={totals.ctr >= targets.ctr ? "up" : "down"} sub={`Obj: ${targets.ctr}%`} />
-                      <KpiCard label={L.cpm ?? "CPM"} value={formatCurrencyCompact(totals.cpm)} icon={<Zap className="w-4 h-4" />} />
-                      <KpiCard label={L.reach ?? "Alcance"} value={formatCompact(totals.reach)} icon={<Users className="w-4 h-4" />} sub={`${L.frequency ?? "Freq."} ${totals.avgFreq.toFixed(1)}`} />
-                      <KpiCard label={L.conversions ?? "Conversiones"} value={formatCompact(totals.conversions)} icon={<ShoppingCart className="w-4 h-4" />} />
-                      <KpiCard label={L.conversionValue ?? "Valor conv."} value={formatCurrencyCompact(totals.conversionValue)} icon={<DollarSign className="w-4 h-4" />} />
+                      {hasRoas && <KpiCard label={L.roas ?? "ROAS"} value={formatRoas(totals.roas)} icon={<TrendingUp className="w-4 h-4" />} trend={totals.roas >= targets.roas ? "up" : "down"} sub={`Obj: ${targets.roas}x`} />}
+                      {hasConversions && <KpiCard label={L.cpa ?? "CPA"} value={totals.cpa > 0 ? formatCurrencyCompact(totals.cpa) : "—"} icon={<ShoppingCart className="w-4 h-4" />} trend={totals.cpa <= targets.cpa ? "up" : "down"} sub={`Obj: $${targets.cpa}`} />}
+                      {hasCtr && <KpiCard label={L.ctr ?? "CTR"} value={formatPercent(totals.ctr)} icon={<MousePointerClick className="w-4 h-4" />} trend={totals.ctr >= targets.ctr ? "up" : "down"} sub={`Obj: ${targets.ctr}%`} />}
+                      {hasCpm && <KpiCard label={L.cpm ?? "CPM"} value={formatCurrencyCompact(totals.cpm)} icon={<Zap className="w-4 h-4" />} />}
+                      {hasReach && <KpiCard label={L.reach ?? "Alcance"} value={formatCompact(totals.reach)} icon={<Users className="w-4 h-4" />} sub={hasFreq ? `${L.frequency ?? "Freq."} ${totals.avgFreq.toFixed(1)}` : undefined} />}
+                      {hasConversions && <KpiCard label={L.conversions ?? "Conversiones"} value={formatCompact(totals.conversions)} icon={<ShoppingCart className="w-4 h-4" />} />}
+                      {hasConvValue && <KpiCard label={L.conversionValue ?? "Valor conv."} value={formatCurrencyCompact(totals.conversionValue)} icon={<DollarSign className="w-4 h-4" />} />}
                     </div>
                   );
                 })()}
