@@ -29,4 +29,12 @@ export interface SavedReport {
     PAUSE: number;
   };
   labels?: MetaLabels;
+  annotations?: Annotation[];
+}
+
+export interface Annotation {
+  id: string;
+  date: string; // YYYY-MM-DD
+  text: string;
+  color: string;
 }

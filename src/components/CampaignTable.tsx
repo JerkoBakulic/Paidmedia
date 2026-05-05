@@ -1,10 +1,10 @@
 "use client";
 
-import type { CampaignAnalysis, MetaLabels } from "@/types/meta";
+import type { CampaignAnalysis, MetaLabels, MetaTargets } from "@/types/meta";
 import { DEFAULT_LABELS } from "@/types/meta";
 import { DecisionBadge } from "./DecisionBadge";
 import { formatCurrency, formatNumber, formatPercent, formatRoas } from "@/lib/utils";
-import { ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, Target, X, Check } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ type SortKey = keyof CampaignAnalysis;
 interface CampaignTableProps {
   data: CampaignAnalysis[];
   labels?: MetaLabels;
+  onUpdateTargets?: (id: string, targets: Partial<MetaTargets>) => void;
 }
 
 const SCORE_COLOR = (s: number) => {
@@ -23,11 +24,83 @@ const SCORE_COLOR = (s: number) => {
   return "text-red-400";
 };
 
-export function CampaignTable({ data, labels = {} }: CampaignTableProps) {
+function TargetEditor({
+  campaign,
+  onSave,
+  onClose,
+}: {
+  campaign: CampaignAnalysis;
+  onSave: (targets: Partial<MetaTargets>) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState<Partial<MetaTargets>>(campaign.customTargets ?? {});
+
+  const field = (key: keyof MetaTargets, label: string, prefix = "") => (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium" style={{ color: "var(--muted-foreground)" }}>{label}</label>
+      <div className="relative">
+        {prefix && (
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs" style={{ color: "var(--muted-foreground)" }}>{prefix}</span>
+        )}
+        <input
+          type="number"
+          min="0"
+          step="any"
+          value={draft[key] ?? ""}
+          onChange={(e) => setDraft((d) => ({ ...d, [key]: parseFloat(e.target.value) || undefined }))}
+          className="w-full rounded border px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-500/40"
+          style={{
+            background: "var(--accent)",
+            borderColor: "var(--border)",
+            paddingLeft: prefix ? "1.5rem" : undefined,
+          }}
+          placeholder="Global"
+        />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="px-4 py-3 border-t" style={{ background: "var(--accent)", borderColor: "var(--border)" }}>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold">Objetivos para: <span className="text-blue-400">{campaign.name}</span></p>
+        <button onClick={onClose} style={{ color: "var(--muted-foreground)" }}><X className="w-3.5 h-3.5" /></button>
+      </div>
+      <p className="text-xs mb-3" style={{ color: "var(--muted-foreground)" }}>
+        Dejá vacío para usar el objetivo global. Estos valores sobreescriben los targets generales solo para esta campaña.
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {field("roas", "ROAS obj.")}
+        {field("cpa", "CPA obj.", "$")}
+        {field("ctr", "CTR obj. (%)")}
+        {field("cpm", "CPM obj.", "$")}
+        {field("maxFrequency", "Freq. máx.")}
+      </div>
+      <div className="flex gap-2 mt-3">
+        <button
+          onClick={() => onSave(draft)}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
+        >
+          <Check className="w-3 h-3" /> Guardar
+        </button>
+        <button
+          onClick={() => { onSave({}); onClose(); }}
+          className="px-3 py-1.5 rounded-lg text-xs border hover:bg-accent transition"
+          style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+        >
+          Restaurar global
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function CampaignTable({ data, labels = {}, onUpdateTargets }: CampaignTableProps) {
   const L = { ...DEFAULT_LABELS, ...labels };
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [editingTargets, setEditingTargets] = useState<string | null>(null);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -97,8 +170,13 @@ export function CampaignTable({ data, labels = {} }: CampaignTableProps) {
                   )}
                   style={{ borderColor: "var(--border)" }}
                 >
-                  <td className="px-3 py-3 font-medium max-w-[200px] truncate">
-                    {c.name}
+                  <td className="px-3 py-3 font-medium max-w-[200px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate">{c.name}</span>
+                      {c.customTargets && Object.keys(c.customTargets).length > 0 && (
+                        <span title="Objetivos personalizados"><Target className="w-3 h-3 shrink-0 text-blue-400" /></span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-3">
                     <DecisionBadge decision={c.decision} />
@@ -141,20 +219,43 @@ export function CampaignTable({ data, labels = {} }: CampaignTableProps) {
                     )}
                   </td>
                 </tr>
-                {expanded === c.id && c.alerts.length > 0 && (
-                  <tr key={`${c.id}-alerts`} style={{ borderColor: "var(--border)" }} className="border-b">
-                    <td colSpan={11} className="px-4 py-3" style={{ background: "var(--accent)" }}>
-                      <div className="flex flex-col gap-1.5">
-                        <p className="text-xs font-semibold mb-1" style={{ color: "var(--muted-foreground)" }}>
-                          Alertas y recomendaciones:
-                        </p>
-                        {c.alerts.map((alert, ai) => (
-                          <div key={ai} className="flex items-start gap-2 text-xs text-orange-300">
-                            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                            {alert}
-                          </div>
-                        ))}
-                      </div>
+
+                {expanded === c.id && (
+                  <tr key={`${c.id}-detail`} style={{ borderColor: "var(--border)" }} className="border-b">
+                    <td colSpan={11} style={{ background: "var(--accent)" }}>
+                      {c.alerts.length > 0 && (
+                        <div className="px-4 py-3 flex flex-col gap-1.5">
+                          <p className="text-xs font-semibold mb-1" style={{ color: "var(--muted-foreground)" }}>
+                            Alertas y recomendaciones:
+                          </p>
+                          {c.alerts.map((alert, ai) => (
+                            <div key={ai} className="flex items-start gap-2 text-xs text-orange-300">
+                              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                              {alert}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {onUpdateTargets && editingTargets !== c.id && (
+                        <div className="px-4 py-2 border-t" style={{ borderColor: "var(--border)" }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditingTargets(c.id); }}
+                            className="flex items-center gap-1.5 text-xs text-blue-400 hover:underline"
+                          >
+                            <Target className="w-3.5 h-3.5" />
+                            {c.customTargets && Object.keys(c.customTargets).length > 0
+                              ? "Editar objetivos de esta campaña"
+                              : "Definir objetivos para esta campaña"}
+                          </button>
+                        </div>
+                      )}
+                      {onUpdateTargets && editingTargets === c.id && (
+                        <TargetEditor
+                          campaign={c}
+                          onSave={(t) => { onUpdateTargets(c.id, t); setEditingTargets(null); }}
+                          onClose={() => setEditingTargets(null)}
+                        />
+                      )}
                     </td>
                   </tr>
                 )}

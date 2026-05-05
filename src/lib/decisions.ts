@@ -10,7 +10,10 @@ export function enrichMetrics(c: MetaCampaign): MetaCampaign {
   return { ...c, frequency, cpm, ctr, cpc, cpa, roas };
 }
 
-export function analyze(campaign: MetaCampaign, targets: MetaTargets): CampaignAnalysis {
+export function analyze(campaign: MetaCampaign, globalTargets: MetaTargets): CampaignAnalysis {
+  const targets: MetaTargets = campaign.customTargets
+    ? { ...globalTargets, ...campaign.customTargets }
+    : globalTargets;
   const c = enrichMetrics(campaign);
   const alerts: string[] = [];
   let score = 50;
