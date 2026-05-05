@@ -232,7 +232,7 @@ export default function Dashboard() {
                 <div>
                   <p className="font-semibold text-lg">Sin datos de campañas</p>
                   <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
-                    Conectá la Meta API, subí un Excel o pegá las métricas
+                    Conectá tu cuenta de Meta o subí un Excel exportado de Ads Manager
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center max-w-lg">
