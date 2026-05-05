@@ -11,7 +11,6 @@ import { KpiCard } from "@/components/KpiCard";
 import { TargetsPanel } from "@/components/TargetsPanel";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { DecisionBadge } from "@/components/DecisionBadge";
 import { ReportsPanel } from "@/components/ReportsPanel";
 import { GitHubSettings } from "@/components/GitHubSettings";
 import { InReportTrendChart } from "@/components/TrendChart";
@@ -23,15 +22,16 @@ import { ClientSwitcher } from "@/components/ClientSwitcher";
 import { AlertsBell } from "@/components/AlertsBell";
 import { CreativeFatigueChart } from "@/components/CreativeFatigueChart";
 import { StructureOverview } from "@/components/StructureOverview";
+import { Sidebar } from "@/components/Sidebar";
 import { useReports } from "@/lib/useReports";
 import { useWorkspace } from "@/lib/useWorkspace";
 import { computeAlerts } from "@/lib/alerts";
 import type { GitHubConfig } from "@/lib/githubStorage";
 import { nanoid } from "@/lib/utils";
 import {
-  BarChart3, DollarSign, TrendingUp, Users,
+  DollarSign, TrendingUp, Users,
   MousePointerClick, ShoppingCart, Zap,
-  BookMarked, Save, Loader2, Upload, RefreshCw,
+  Save, Loader2, Upload, RefreshCw,
 } from "lucide-react";
 import {
   formatCurrencyCompact, formatCompact,
@@ -128,21 +128,28 @@ export default function Dashboard() {
   }, [analyzed, targets, totals, decisionCounts, labels, save]);
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--background)" }}>
-      {/* Header */}
-      <header
-        className="sticky top-0 z-40 border-b backdrop-blur-sm"
-        style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--card) 90%, transparent)" }}
-      >
-        <div className="max-w-screen-2xl mx-auto flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500">
-              <BarChart3 className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold leading-tight">Paid Media Analyzer</h1>
-              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Meta Ads · Análisis de campañas</p>
-            </div>
+    <div className="min-h-screen flex" style={{ background: "var(--background)" }}>
+
+      {/* Sidebar */}
+      <Sidebar
+        mainTab={mainTab}
+        analysisTab={analysisTab}
+        onMainTab={setMainTab}
+        onAnalysisTab={setAnalysisTab}
+        hasData={analyzed.length > 0}
+        hasMetaConnection={!!metaConnection}
+        reportsCount={reports.length}
+      />
+
+      {/* Contenido principal */}
+      <div className="flex-1 flex flex-col min-w-0">
+
+        {/* Header slim */}
+        <header
+          className="sticky top-0 z-40 border-b backdrop-blur-sm"
+          style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--card) 90%, transparent)" }}
+        >
+          <div className="flex items-center justify-between px-4 py-2.5 md:pl-4 pl-12">
             <ClientSwitcher
               workspaces={workspaces}
               active={activeWorkspace}
@@ -151,51 +158,19 @@ export default function Dashboard() {
               onRename={renameWorkspace}
               onDelete={deleteWorkspace}
             />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
-              <button
-                onClick={() => setMainTab("analysis")}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all"
-                style={{
-                  background: mainTab === "analysis" ? "var(--primary)" : "transparent",
-                  color: mainTab === "analysis" ? "white" : "var(--muted-foreground)",
-                }}
-              >
-                <BarChart3 className="w-3.5 h-3.5" /> Análisis
-              </button>
-              <button
-                onClick={() => setMainTab("reports")}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all relative"
-                style={{
-                  background: mainTab === "reports" ? "var(--primary)" : "transparent",
-                  color: mainTab === "reports" ? "white" : "var(--muted-foreground)",
-                }}
-              >
-                <BookMarked className="w-3.5 h-3.5" /> Reportes
-                {reports.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] flex items-center justify-center font-bold">
-                    {reports.length}
-                  </span>
-                )}
-              </button>
+            <div className="flex items-center gap-2">
+              <AlertsBell alerts={alerts} />
+              {syncing && (
+                <span className="flex items-center gap-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando…
+                </span>
+              )}
+              <ThemeToggle />
             </div>
-
-            <AlertsBell alerts={alerts} />
-
-            {syncing && (
-              <span className="flex items-center gap-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando…
-              </span>
-            )}
-
-            <ThemeToggle />
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="max-w-screen-2xl mx-auto px-4 py-6 flex flex-col gap-6">
+        <main className="flex-1 px-4 md:px-6 py-6 flex flex-col gap-6 max-w-screen-xl">
 
         {/* ANALYSIS TAB */}
         {mainTab === "analysis" && (
@@ -409,11 +384,8 @@ export default function Dashboard() {
             <ReportsPanel reports={reports} onDelete={remove} onClear={clear} />
           </div>
         )}
-      </main>
-
-      <footer className="mt-auto border-t py-4 text-center text-xs" style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}>
-        Paid Media Analyzer · Meta Ads · 2025
-      </footer>
+        </main>
+      </div>
     </div>
   );
 }
