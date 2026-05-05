@@ -39,8 +39,6 @@ export interface CampaignAnalysis extends MetaCampaign {
   score: number;
 }
 
-export type InputMode = "manual" | "excel" | "paste";
-
 export interface MetricConfig {
   key: keyof MetaCampaign;
   label: string;
