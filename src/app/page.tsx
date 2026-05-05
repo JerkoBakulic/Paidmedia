@@ -22,6 +22,7 @@ import { MetaApiConnect } from "@/components/MetaApiConnect";
 import { ClientSwitcher } from "@/components/ClientSwitcher";
 import { AlertsBell } from "@/components/AlertsBell";
 import { CreativeFatigueChart } from "@/components/CreativeFatigueChart";
+import { StructureOverview } from "@/components/StructureOverview";
 import { useReports } from "@/lib/useReports";
 import { useWorkspace } from "@/lib/useWorkspace";
 import { computeAlerts } from "@/lib/alerts";
@@ -38,7 +39,7 @@ import {
 } from "@/lib/utils";
 
 type MainTab = "analysis" | "reports";
-type AnalysisTab = "table" | "charts";
+type AnalysisTab = "table" | "charts" | "structure";
 
 export default function Dashboard() {
   const [campaigns, setCampaigns] = useState<MetaCampaign[]>([]);
@@ -49,6 +50,7 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [githubConfig, setGithubConfig] = useState<GitHubConfig | null>(null);
+  const [metaConnection, setMetaConnection] = useState<{ token: string; accountId: string } | null>(null);
 
   const {
     workspaces,
@@ -220,7 +222,10 @@ export default function Dashboard() {
           <>
             <section className="flex flex-col gap-3">
               <TargetsPanel targets={targets} onChange={setTargets} />
-              <MetaApiConnect onData={(c) => { setCampaigns(c); setLabels({}); }} />
+              <MetaApiConnect
+                onData={(c) => { setCampaigns(c); setLabels({}); }}
+                onConnect={(token, accountId) => setMetaConnection({ token, accountId })}
+              />
               <MetricsInput onData={(c, l) => { setCampaigns(c); if (Object.keys(l).length > 0) setLabels(l); }} />
             </section>
 
@@ -292,10 +297,14 @@ export default function Dashboard() {
                 <BenchmarksPanel totals={totals} targets={targets} />
 
                 <div className="flex gap-1 border-b" style={{ borderColor: "var(--border)" }}>
-                  {(["table", "charts"] as const).map((tab) => (
-                    <button key={tab} onClick={() => setAnalysisTab(tab)} className="px-4 py-2 text-sm font-medium transition-all -mb-px border-b-2"
-                      style={{ borderBottomColor: analysisTab === tab ? "var(--primary)" : "transparent", color: analysisTab === tab ? "var(--primary)" : "var(--muted-foreground)" }}>
-                      {tab === "table" ? "Tabla de campañas" : "Gráficos"}
+                  {([
+                    { key: "table", label: "Tabla de campañas" },
+                    { key: "charts", label: "Gráficos" },
+                    ...(metaConnection ? [{ key: "structure", label: "Estructura" }] : []),
+                  ] as { key: AnalysisTab; label: string }[]).map(({ key, label }) => (
+                    <button key={key} onClick={() => setAnalysisTab(key)} className="px-4 py-2 text-sm font-medium transition-all -mb-px border-b-2"
+                      style={{ borderBottomColor: analysisTab === key ? "var(--primary)" : "transparent", color: analysisTab === key ? "var(--primary)" : "var(--muted-foreground)" }}>
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -314,6 +323,9 @@ export default function Dashboard() {
                     <PlacementBreakdown data={analyzed} />
                     <InReportTrendChart campaigns={analyzed} />
                   </div>
+                )}
+                {analysisTab === "structure" && metaConnection && (
+                  <StructureOverview token={metaConnection.token} accountId={metaConnection.accountId} />
                 )}
               </>
             )}

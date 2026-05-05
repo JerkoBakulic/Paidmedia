@@ -15,9 +15,10 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   onData: (campaigns: MetaCampaign[]) => void;
+  onConnect?: (token: string, accountId: string) => void;
 }
 
-export function MetaApiConnect({ onData }: Props) {
+export function MetaApiConnect({ onData, onConnect }: Props) {
   const [open, setOpen] = useState(false);
   const { status: fbStatus, token, login, logout } = useFacebookSDK();
 
@@ -55,6 +56,7 @@ export function MetaApiConnect({ onData }: Props) {
       .then((campaigns) => {
         if (!cancelled) {
           onDataRef.current(campaigns);
+          onConnect?.(token, selectedAccount);
           setOpen(false);
         }
       })
