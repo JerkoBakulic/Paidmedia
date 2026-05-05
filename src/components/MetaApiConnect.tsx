@@ -15,11 +15,12 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   onData: (campaigns: MetaCampaign[]) => void;
-  onConnect?: (token: string, accountId: string) => void;
+  onConnect?: (token: string, accountId: string, accountName: string) => void;
+  defaultOpen?: boolean;
 }
 
-export function MetaApiConnect({ onData, onConnect }: Props) {
-  const [open, setOpen] = useState(false);
+export function MetaApiConnect({ onData, onConnect, defaultOpen = false }: Props) {
+  const [open, setOpen] = useState(defaultOpen);
   const { status: fbStatus, token, login, logout } = useFacebookSDK();
 
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
@@ -56,7 +57,8 @@ export function MetaApiConnect({ onData, onConnect }: Props) {
       .then((campaigns) => {
         if (!cancelled) {
           onDataRef.current(campaigns);
-          onConnect?.(token, selectedAccount);
+          const accountName = accounts.find((a) => a.id === selectedAccount)?.name ?? "";
+          onConnect?.(token, selectedAccount, accountName);
           setOpen(false);
         }
       })
