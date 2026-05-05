@@ -71,6 +71,98 @@ function getActionValue(
   return item ? parseFloat(item.value) || 0 : 0;
 }
 
+export type ObjectStatus = "ACTIVE" | "PAUSED" | "ARCHIVED" | "DELETED";
+
+export interface AdNode {
+  id: string;
+  name: string;
+  status: ObjectStatus;
+  effectiveStatus: string;
+}
+
+export interface AdsetNode {
+  id: string;
+  name: string;
+  status: ObjectStatus;
+  effectiveStatus: string;
+  campaignId: string;
+  ads: AdNode[];
+}
+
+export interface CampaignNode {
+  id: string;
+  name: string;
+  status: ObjectStatus;
+  effectiveStatus: string;
+  adsets: AdsetNode[];
+}
+
+async function fetchPaged<T>(url: string): Promise<T[]> {
+  const results: T[] = [];
+  let next: string | null = url;
+  while (next) {
+    const res: Response = await fetch(next);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message ?? `Error ${res.status}`);
+    }
+    const data = await res.json();
+    results.push(...(data.data ?? []));
+    next = data.paging?.next ?? null;
+  }
+  return results;
+}
+
+export async function fetchAccountStructure(
+  token: string,
+  accountId: string
+): Promise<CampaignNode[]> {
+  const id = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const base = `${GRAPH}/${id}`;
+  const t = `access_token=${token}`;
+
+  const [rawCampaigns, rawAdsets, rawAds] = await Promise.all([
+    fetchPaged<{ id: string; name: string; status: string; effective_status: string }>(
+      `${base}/campaigns?fields=id,name,status,effective_status&limit=100&${t}`
+    ),
+    fetchPaged<{ id: string; name: string; status: string; effective_status: string; campaign_id: string }>(
+      `${base}/adsets?fields=id,name,status,effective_status,campaign_id&limit=200&${t}`
+    ),
+    fetchPaged<{ id: string; name: string; status: string; effective_status: string; adset_id: string }>(
+      `${base}/ads?fields=id,name,status,effective_status,adset_id&limit=500&${t}`
+    ),
+  ]);
+
+  const adsByAdset = new Map<string, AdNode[]>();
+  for (const ad of rawAds) {
+    const list = adsByAdset.get(ad.adset_id) ?? [];
+    list.push({ id: ad.id, name: ad.name, status: ad.status as ObjectStatus, effectiveStatus: ad.effective_status });
+    adsByAdset.set(ad.adset_id, list);
+  }
+
+  const adsetsByCampaign = new Map<string, AdsetNode[]>();
+  for (const as of rawAdsets) {
+    const list = adsetsByCampaign.get(as.campaign_id) ?? [];
+    list.push({
+      id: as.id,
+      name: as.name,
+      status: as.status as ObjectStatus,
+      effectiveStatus: as.effective_status,
+      campaignId: as.campaign_id,
+      ads: adsByAdset.get(as.id) ?? [],
+    });
+    adsetsByCampaign.set(as.campaign_id, list);
+  }
+
+  return rawCampaigns.map((c) => ({
+    id: c.id,
+    name: c.name,
+    status: c.status as ObjectStatus,
+    effectiveStatus: c.effective_status,
+    adsets: adsetsByCampaign.get(c.id) ?? [],
+  }));
+}
+
 export async function fetchCampaignInsights(
   token: string,
   accountId: string,
