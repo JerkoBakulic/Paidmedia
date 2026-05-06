@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { MetaCampaign, MetaTargets, CampaignAnalysis, MetaLabels } from "@/types/meta";
 import { DEFAULT_LABELS } from "@/types/meta";
 import type { SavedReport, ReportTotals } from "@/types/report";
@@ -20,6 +20,7 @@ import { ClientSwitcher } from "@/components/ClientSwitcher";
 import { AlertsBell } from "@/components/AlertsBell";
 import { CreativeFatigueChart } from "@/components/CreativeFatigueChart";
 import { StructureOverview } from "@/components/StructureOverview";
+import { ComparePanel } from "@/components/ComparePanel";
 import { Sidebar, type CampaignType, type MainTab, type AnalysisTab, CAMPAIGN_TYPE_CONFIG } from "@/components/Sidebar";
 import { LoginGate } from "@/components/LoginGate";
 import { useReports } from "@/lib/useReports";
@@ -28,7 +29,7 @@ import { useAuth } from "@/lib/useAuth";
 import { computeAlerts } from "@/lib/alerts";
 import type { GitHubConfig } from "@/lib/githubStorage";
 import { nanoid } from "@/lib/utils";
-import type { DatePreset } from "@/lib/metaApi";
+import { fetchCampaignInsights, type MetaAdAccount, type DatePreset } from "@/lib/metaApi";
 import {
   DollarSign, TrendingUp, Users,
   MousePointerClick, ShoppingCart, Zap,
@@ -38,6 +39,13 @@ import {
   formatCurrencyCompact, formatCompact,
   formatPercent, formatRoas,
 } from "@/lib/utils";
+
+interface MetaConnection {
+  token: string;
+  accountId: string;
+  accountName: string;
+  accounts: MetaAdAccount[];
+}
 
 export default function Dashboard() {
   const { authenticated, ready, login, logout } = useAuth();
@@ -50,14 +58,18 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [githubConfig, setGithubConfig] = useState<GitHubConfig | null>(null);
-  const [metaConnection, setMetaConnection] = useState<{ token: string; accountId: string; accountName: string } | null>(null);
+  const [metaConnection, setMetaConnection] = useState<MetaConnection | null>(null);
   const [dataSource, setDataSource] = useState<"meta" | "excel" | null>(null);
   const [selectedSource, setSelectedSource] = useState<"meta" | "excel" | null>(null);
   const [campaignType, setCampaignType] = useState<CampaignType>("ecommerce");
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [metaError, setMetaError] = useState("");
 
-  // Para el panel de Meta persistente en el sidebar
   const [metaDatePreset, setMetaDatePreset] = useState<DatePreset>("last_30d");
   const [metaLevel, setMetaLevel] = useState<"campaign" | "adset" | "ad">("campaign");
+
+  // Tracks what was last fetched to avoid re-fetching what MetaApiConnect already loaded
+  const lastFetchedKeyRef = useRef("");
 
   const {
     workspaces, activeWorkspace, createWorkspace,
@@ -71,6 +83,37 @@ export default function Dashboard() {
     () => campaigns.map((c) => analyze(c, targets)),
     [campaigns, targets]
   );
+
+  // Auto-refresh when account, period, or level changes from sidebar
+  useEffect(() => {
+    if (!metaConnection || dataSource !== "meta") return;
+    const key = `${metaConnection.accountId}__${metaDatePreset}__${metaLevel}`;
+    if (lastFetchedKeyRef.current === key) return; // already have this data
+    lastFetchedKeyRef.current = key;
+    let cancelled = false;
+    setMetaLoading(true);
+    setMetaError("");
+    fetchCampaignInsights(metaConnection.token, metaConnection.accountId, metaDatePreset, metaLevel)
+      .then((c) => { if (!cancelled) setCampaigns(c); })
+      .catch((e) => { if (!cancelled) setMetaError(e instanceof Error ? e.message : "Error al obtener datos"); })
+      .finally(() => { if (!cancelled) setMetaLoading(false); });
+    return () => { cancelled = true; };
+  }, [metaConnection?.accountId, metaDatePreset, metaLevel, dataSource]);
+
+  const handleMetaConnect = useCallback((token: string, accountId: string, accountName: string, accounts: MetaAdAccount[]) => {
+    setMetaConnection({ token, accountId, accountName, accounts });
+    // Set the lastFetchedKey so the useEffect above skips re-fetching what MetaApiConnect already loaded
+    lastFetchedKeyRef.current = `${accountId}__${metaDatePreset}__${metaLevel}`;
+  }, [metaDatePreset, metaLevel]);
+
+  const handleMetaAccount = useCallback((accountId: string) => {
+    setMetaConnection((prev) => {
+      if (!prev) return null;
+      const account = prev.accounts.find((a) => a.id === accountId);
+      return { ...prev, accountId, accountName: account?.name ?? "" };
+    });
+    lastFetchedKeyRef.current = ""; // force re-fetch with new account
+  }, []);
 
   const handleUpdateCampaignTargets = useCallback((id: string, customTargets: Partial<MetaTargets>) => {
     setCampaigns((prev) =>
@@ -127,7 +170,6 @@ export default function Dashboard() {
 
   const typeConfig = CAMPAIGN_TYPE_CONFIG[campaignType];
 
-  // Muestra login si no está autenticado
   if (!ready) return null;
   if (!authenticated) return <LoginGate onLogin={login} />;
 
@@ -147,10 +189,14 @@ export default function Dashboard() {
         onLogout={logout}
         metaQuick={dataSource === "meta" && metaConnection ? {
           accountName: metaConnection.accountName,
+          accountId: metaConnection.accountId,
+          accounts: metaConnection.accounts,
           datePreset: metaDatePreset,
           level: metaLevel,
+          onAccount: handleMetaAccount,
           onDatePreset: setMetaDatePreset,
           onLevel: setMetaLevel,
+          loading: metaLoading,
         } : undefined}
       />
 
@@ -172,9 +218,10 @@ export default function Dashboard() {
             />
             <div className="flex items-center gap-2">
               <AlertsBell alerts={alerts} />
-              {syncing && (
+              {(syncing || metaLoading) && (
                 <span className="flex items-center gap-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                  <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando…
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  {metaLoading ? "Actualizando…" : "Sincronizando…"}
                 </span>
               )}
               <ThemeToggle />
@@ -250,7 +297,7 @@ export default function Dashboard() {
                       externalDatePreset={metaDatePreset}
                       externalLevel={metaLevel}
                       onData={(c) => { setCampaigns(c); setLabels({}); setDataSource("meta"); }}
-                      onConnect={(token, accountId, accountName) => setMetaConnection({ token, accountId, accountName })}
+                      onConnect={handleMetaConnect}
                       onSettingsChange={(dp, lv) => { setMetaDatePreset(dp); setMetaLevel(lv); }}
                     />
                   )}
@@ -279,6 +326,9 @@ export default function Dashboard() {
                       <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: "var(--accent)", color: "var(--muted-foreground)" }}>
                         {analyzed.length} {analyzed.length === 1 ? "campaña" : "campañas"}
                       </span>
+                      {metaError && (
+                        <span className="text-xs text-red-400">{metaError}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {savedMsg ? (
@@ -293,7 +343,11 @@ export default function Dashboard() {
                         </button>
                       )}
                       <button
-                        onClick={() => { setCampaigns([]); setLabels({}); setDataSource(null); setSelectedSource(null); setMetaConnection(null); }}
+                        onClick={() => {
+                          setCampaigns([]); setLabels({}); setDataSource(null);
+                          setSelectedSource(null); setMetaConnection(null);
+                          lastFetchedKeyRef.current = "";
+                        }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border hover:bg-accent/60 transition"
                         style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
                       >
@@ -301,19 +355,6 @@ export default function Dashboard() {
                       </button>
                     </div>
                   </div>
-
-                  {/* MetaApiConnect montado pero invisible — reacciona a cambios del sidebar */}
-                  {dataSource === "meta" && metaConnection && (
-                    <div className="hidden">
-                      <MetaApiConnect
-                        standalone
-                        externalDatePreset={metaDatePreset}
-                        externalLevel={metaLevel}
-                        onData={(c) => setCampaigns(c)}
-                        onConnect={(token, accountId, accountName) => setMetaConnection({ token, accountId, accountName })}
-                      />
-                    </div>
-                  )}
 
                   {/* Resumen de decisiones */}
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -361,7 +402,7 @@ export default function Dashboard() {
                     );
                   })()}
 
-                  <BenchmarksPanel totals={totals} targets={targets} />
+                  <BenchmarksPanel totals={totals} targets={targets} campaignType={campaignType} />
 
                   {/* Contenido de la sub-pestaña activa */}
                   {analysisTab === "table" && (
@@ -377,6 +418,9 @@ export default function Dashboard() {
                   )}
                   {analysisTab === "structure" && metaConnection && (
                     <StructureOverview token={metaConnection.token} accountId={metaConnection.accountId} />
+                  )}
+                  {analysisTab === "compare" && (
+                    <ComparePanel campaigns={analyzed} campaignType={campaignType} />
                   )}
                 </>
               )}

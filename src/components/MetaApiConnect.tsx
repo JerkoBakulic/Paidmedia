@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   onData: (campaigns: MetaCampaign[]) => void;
-  onConnect?: (token: string, accountId: string, accountName: string) => void;
+  onConnect?: (token: string, accountId: string, accountName: string, accounts: MetaAdAccount[]) => void;
   onSettingsChange?: (datePreset: DatePreset, level: "campaign" | "adset" | "ad") => void;
   externalDatePreset?: DatePreset;
   externalLevel?: "campaign" | "adset" | "ad";
@@ -66,7 +66,7 @@ export function MetaApiConnect({ onData, onConnect, onSettingsChange, externalDa
         if (!cancelled) {
           onDataRef.current(campaigns);
           const accountName = accounts.find((a) => a.id === selectedAccount)?.name ?? "";
-          onConnect?.(token, selectedAccount, accountName);
+          onConnect?.(token, selectedAccount, accountName, accounts);
           if (!standalone) setOpen(false);
         }
       })
