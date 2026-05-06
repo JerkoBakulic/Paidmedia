@@ -3,15 +3,15 @@
 import {
   BarChart3, BookMarked, Table2, LineChart, Layers,
   ChevronRight, Menu, X, Zap, ShoppingCart, Users, MessageCircle,
-  LogOut, ChevronDown,
+  LogOut, ChevronDown, Columns2, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import type { DatePreset } from "@/lib/metaApi";
+import type { MetaAdAccount, DatePreset } from "@/lib/metaApi";
 import { DATE_PRESET_LABELS } from "@/lib/metaApi";
 
 export type MainTab = "analysis" | "reports";
-export type AnalysisTab = "table" | "charts" | "structure";
+export type AnalysisTab = "table" | "charts" | "structure" | "compare";
 export type CampaignType = "ecommerce" | "leads" | "messages";
 
 export const CAMPAIGN_TYPE_CONFIG: Record<CampaignType, {
@@ -47,15 +47,20 @@ export const CAMPAIGN_TYPE_CONFIG: Record<CampaignType, {
 const ANALYSIS_TABS: { key: AnalysisTab; label: string; icon: React.ReactNode; requiresMeta?: boolean }[] = [
   { key: "table",     label: "Tabla",      icon: <Table2    className="w-3.5 h-3.5" /> },
   { key: "charts",    label: "Gráficos",   icon: <LineChart className="w-3.5 h-3.5" /> },
+  { key: "compare",   label: "Comparar",   icon: <Columns2  className="w-3.5 h-3.5" /> },
   { key: "structure", label: "Estructura", icon: <Layers    className="w-3.5 h-3.5" />, requiresMeta: true },
 ];
 
 interface MetaQuickSettings {
   accountName: string;
+  accountId: string;
+  accounts: MetaAdAccount[];
   datePreset: DatePreset;
   level: "campaign" | "adset" | "ad";
+  onAccount: (id: string) => void;
   onDatePreset: (v: DatePreset) => void;
   onLevel: (v: "campaign" | "adset" | "ad") => void;
+  loading?: boolean;
 }
 
 interface SidebarProps {
@@ -84,11 +89,29 @@ function MetaQuickPanel({ s }: { s: MetaQuickSettings }) {
       >
         <Zap className="w-3.5 h-3.5 text-blue-400 shrink-0" />
         <span className="flex-1 truncate text-left">{s.accountName || "Meta API"}</span>
-        <ChevronDown className={cn("w-3 h-3 transition-transform", open && "rotate-180")} />
+        {s.loading && <Loader2 className="w-3 h-3 animate-spin text-blue-400 shrink-0" />}
+        <ChevronDown className={cn("w-3 h-3 transition-transform shrink-0", open && "rotate-180")} />
       </button>
 
       {open && (
         <div className="mx-2 mb-1 rounded-lg border p-2 flex flex-col gap-2" style={{ borderColor: "var(--border)", background: "var(--accent)/50" }}>
+
+          {s.accounts.length > 1 && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-medium uppercase" style={{ color: "var(--muted-foreground)" }}>Portfolio</label>
+              <select
+                value={s.accountId}
+                onChange={(e) => s.onAccount(e.target.value)}
+                className="rounded-lg border px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-500/40"
+                style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--foreground)" }}
+              >
+                {s.accounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-medium uppercase" style={{ color: "var(--muted-foreground)" }}>Período</label>
             <select
@@ -102,6 +125,7 @@ function MetaQuickPanel({ s }: { s: MetaQuickSettings }) {
               ))}
             </select>
           </div>
+
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-medium uppercase" style={{ color: "var(--muted-foreground)" }}>Nivel</label>
             <select
@@ -127,7 +151,6 @@ function NavContent(props: SidebarProps & { onClose?: () => void }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-4 border-b" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-500 shrink-0">
           <BarChart3 className="w-3.5 h-3.5 text-white" />
@@ -144,7 +167,6 @@ function NavContent(props: SidebarProps & { onClose?: () => void }) {
       </div>
 
       <nav className="flex-1 px-2 py-3 flex flex-col gap-0.5 overflow-y-auto">
-        {/* Análisis */}
         <button
           onClick={() => { onMainTab("analysis"); onClose?.(); }}
           className={cn(
@@ -157,7 +179,6 @@ function NavContent(props: SidebarProps & { onClose?: () => void }) {
           Análisis
         </button>
 
-        {/* Sub-ítems — solo cuando hay datos */}
         {mainTab === "analysis" && hasData && (
           <div className="ml-4 pl-2 border-l flex flex-col gap-0.5 mt-0.5" style={{ borderColor: "var(--border)" }}>
             {ANALYSIS_TABS.filter((t) => !t.requiresMeta || hasMetaConnection).map((t) => (
@@ -180,7 +201,6 @@ function NavContent(props: SidebarProps & { onClose?: () => void }) {
 
         <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
 
-        {/* Reportes */}
         <button
           onClick={() => { onMainTab("reports"); onClose?.(); }}
           className={cn(
@@ -198,7 +218,6 @@ function NavContent(props: SidebarProps & { onClose?: () => void }) {
           )}
         </button>
 
-        {/* Meta quick settings — solo cuando hay conexión Meta activa */}
         {metaQuick && (
           <>
             <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
@@ -209,7 +228,6 @@ function NavContent(props: SidebarProps & { onClose?: () => void }) {
           </>
         )}
 
-        {/* Tipo de campaña — solo cuando hay datos */}
         {hasData && (
           <>
             <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
@@ -235,7 +253,6 @@ function NavContent(props: SidebarProps & { onClose?: () => void }) {
         )}
       </nav>
 
-      {/* Footer con logout */}
       <div className="px-3 py-3 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
         <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>Paid Media Analyzer</span>
         <button
