@@ -228,29 +228,6 @@ function NavContent(props: SidebarProps & { onClose?: () => void }) {
           </>
         )}
 
-        {hasData && (
-          <>
-            <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
-            <p className="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>
-              Tipo de campaña
-            </p>
-            {(Object.entries(CAMPAIGN_TYPE_CONFIG) as [CampaignType, typeof CAMPAIGN_TYPE_CONFIG[CampaignType]][]).map(([k, cfg]) => (
-              <button
-                key={k}
-                onClick={() => onCampaignType(k)}
-                className={cn(
-                  "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                  campaignType === k ? "bg-blue-500/10 text-blue-400" : "hover:bg-accent/60"
-                )}
-                style={campaignType !== k ? { color: "var(--muted-foreground)" } : undefined}
-              >
-                {cfg.icon}
-                {cfg.label}
-                {campaignType === k && <ChevronRight className="w-3 h-3 ml-auto" />}
-              </button>
-            ))}
-          </>
-        )}
       </nav>
 
       <div className="px-3 py-3 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
