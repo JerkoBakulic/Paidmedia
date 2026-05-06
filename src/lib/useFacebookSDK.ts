@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 const FB_APP_ID = "1010904391689357";
 const FB_VERSION = "v19.0";
+const TOKEN_KEY = "paidmedia_fb_token_v1";
 
 declare global {
   interface Window {
@@ -19,65 +20,65 @@ declare global {
 
 export type FBStatus = "idle" | "loading" | "connected" | "error";
 
+function loadSdk(onReady: () => void) {
+  if (window.FB) { onReady(); return; }
+  if (document.getElementById("facebook-jssdk")) {
+    // Script already in DOM but FB not yet ready — wait for it
+    const existing = window.fbAsyncInit;
+    window.fbAsyncInit = () => { existing?.(); onReady(); };
+    return;
+  }
+  window.fbAsyncInit = () => {
+    window.FB.init({ appId: FB_APP_ID, cookie: true, xfbml: false, version: FB_VERSION });
+    onReady();
+  };
+  const js = document.createElement("script");
+  js.id = "facebook-jssdk";
+  js.src = "https://connect.facebook.net/es_LA/sdk.js";
+  js.async = true;
+  js.defer = true;
+  document.body.appendChild(js);
+}
+
 export function useFacebookSDK() {
   const [status, setStatus] = useState<FBStatus>("loading");
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    // Carga el SDK solo una vez
-    if (document.getElementById("facebook-jssdk")) {
-      setStatus("idle");
+    // Restore token from localStorage — no SDK needed for this
+    const stored = localStorage.getItem(TOKEN_KEY);
+    if (stored) {
+      setToken(stored);
+      setStatus("connected");
       return;
     }
-
-    window.fbAsyncInit = () => {
-      window.FB.init({
-        appId: FB_APP_ID,
-        cookie: true,
-        xfbml: false,
-        version: FB_VERSION,
-      });
-
-      window.FB.getLoginStatus((res) => {
-        if (res.status === "connected" && res.authResponse?.accessToken) {
-          setToken(res.authResponse.accessToken);
-          setStatus("connected");
-        } else {
-          setStatus("idle");
-        }
-      });
-    };
-
-    const js = document.createElement("script");
-    js.id = "facebook-jssdk";
-    js.src = "https://connect.facebook.net/es_LA/sdk.js";
-    js.async = true;
-    js.defer = true;
-    document.body.appendChild(js);
+    setStatus("idle");
   }, []);
 
   const login = () => {
-    if (!window.FB) return;
     setStatus("loading");
-    window.FB.login(
-      (res) => {
-        if (res.authResponse?.accessToken) {
-          setToken(res.authResponse.accessToken);
-          setStatus("connected");
-        } else {
-          setStatus("idle");
-        }
-      },
-      { scope: "ads_read,ads_management" }
-    );
+    loadSdk(() => {
+      window.FB.login(
+        (res) => {
+          if (res.authResponse?.accessToken) {
+            localStorage.setItem(TOKEN_KEY, res.authResponse.accessToken);
+            setToken(res.authResponse.accessToken);
+            setStatus("connected");
+          } else {
+            setStatus("idle");
+          }
+        },
+        { scope: "ads_read,ads_management" }
+      );
+    });
   };
 
   const logout = () => {
-    if (!window.FB) return;
-    window.FB.logout(() => {
-      setToken(null);
-      setStatus("idle");
-    });
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    setStatus("idle");
+    // Best-effort FB session invalidation (won't fail if SDK not loaded)
+    if (window.FB) window.FB.logout(() => {});
   };
 
   return { status, token, login, logout };
