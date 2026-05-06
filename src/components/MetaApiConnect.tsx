@@ -16,18 +16,21 @@ import { cn } from "@/lib/utils";
 interface Props {
   onData: (campaigns: MetaCampaign[]) => void;
   onConnect?: (token: string, accountId: string, accountName: string) => void;
+  onSettingsChange?: (datePreset: DatePreset, level: "campaign" | "adset" | "ad") => void;
+  externalDatePreset?: DatePreset;
+  externalLevel?: "campaign" | "adset" | "ad";
   defaultOpen?: boolean;
-  standalone?: boolean; // sin acordeón, contenido siempre visible
+  standalone?: boolean;
 }
 
-export function MetaApiConnect({ onData, onConnect, defaultOpen = false, standalone = false }: Props) {
+export function MetaApiConnect({ onData, onConnect, onSettingsChange, externalDatePreset, externalLevel, defaultOpen = false, standalone = false }: Props) {
   const [open, setOpen] = useState(standalone || defaultOpen);
   const { status: fbStatus, token, login, logout } = useFacebookSDK();
 
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState("");
-  const [datePreset, setDatePreset] = useState<DatePreset>("last_30d");
-  const [level, setLevel] = useState<"campaign" | "adset" | "ad">("campaign");
+  const [datePreset, setDatePreset] = useState<DatePreset>(externalDatePreset ?? "last_30d");
+  const [level, setLevel] = useState<"campaign" | "adset" | "ad">(externalLevel ?? "campaign");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
@@ -36,6 +39,10 @@ export function MetaApiConnect({ onData, onConnect, defaultOpen = false, standal
   onDataRef.current = onData;
 
   const retry = useCallback(() => setRetryCount((n) => n + 1), []);
+
+  // Sincroniza props externas (sidebar cambia período/nivel)
+  useEffect(() => { if (externalDatePreset) setDatePreset(externalDatePreset); }, [externalDatePreset]);
+  useEffect(() => { if (externalLevel) setLevel(externalLevel); }, [externalLevel]);
 
   // Carga cuentas al conectarse
   useEffect(() => {
