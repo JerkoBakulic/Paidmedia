@@ -1,11 +1,62 @@
 "use client";
 
-import { BarChart3, BookMarked, Table2, LineChart, Layers, Settings2, ChevronRight, Menu, X } from "lucide-react";
+import {
+  BarChart3, BookMarked, Table2, LineChart, Layers,
+  ChevronRight, Menu, X, Zap, ShoppingCart, Users, MessageCircle,
+  LogOut, ChevronDown,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import type { DatePreset } from "@/lib/metaApi";
+import { DATE_PRESET_LABELS } from "@/lib/metaApi";
 
-type MainTab = "analysis" | "reports";
-type AnalysisTab = "table" | "charts" | "structure";
+export type MainTab = "analysis" | "reports";
+export type AnalysisTab = "table" | "charts" | "structure";
+export type CampaignType = "ecommerce" | "leads" | "messages";
+
+export const CAMPAIGN_TYPE_CONFIG: Record<CampaignType, {
+  label: string;
+  icon: React.ReactNode;
+  convLabel: string;
+  cpaLabel: string;
+  showConvValue: boolean;
+}> = {
+  ecommerce: {
+    label: "Ecommerce",
+    icon: <ShoppingCart className="w-3.5 h-3.5" />,
+    convLabel: "Compras",
+    cpaLabel: "Costo por compra",
+    showConvValue: true,
+  },
+  leads: {
+    label: "Generación de leads",
+    icon: <Users className="w-3.5 h-3.5" />,
+    convLabel: "Leads",
+    cpaLabel: "Costo por lead (CPL)",
+    showConvValue: false,
+  },
+  messages: {
+    label: "Mensajes",
+    icon: <MessageCircle className="w-3.5 h-3.5" />,
+    convLabel: "Mensajes",
+    cpaLabel: "Costo por mensaje",
+    showConvValue: false,
+  },
+};
+
+const ANALYSIS_TABS: { key: AnalysisTab; label: string; icon: React.ReactNode; requiresMeta?: boolean }[] = [
+  { key: "table",     label: "Tabla",      icon: <Table2    className="w-3.5 h-3.5" /> },
+  { key: "charts",    label: "Gráficos",   icon: <LineChart className="w-3.5 h-3.5" /> },
+  { key: "structure", label: "Estructura", icon: <Layers    className="w-3.5 h-3.5" />, requiresMeta: true },
+];
+
+interface MetaQuickSettings {
+  accountName: string;
+  datePreset: DatePreset;
+  level: "campaign" | "adset" | "ad";
+  onDatePreset: (v: DatePreset) => void;
+  onLevel: (v: "campaign" | "adset" | "ad") => void;
+}
 
 interface SidebarProps {
   mainTab: MainTab;
@@ -15,15 +66,65 @@ interface SidebarProps {
   hasData: boolean;
   hasMetaConnection: boolean;
   reportsCount: number;
+  campaignType: CampaignType;
+  onCampaignType: (t: CampaignType) => void;
+  metaQuick?: MetaQuickSettings;
+  onLogout: () => void;
 }
 
-const ANALYSIS_TABS: { key: AnalysisTab; label: string; icon: React.ReactNode; requiresMeta?: boolean }[] = [
-  { key: "table",     label: "Tabla de campañas", icon: <Table2  className="w-3.5 h-3.5" /> },
-  { key: "charts",    label: "Gráficos",           icon: <LineChart className="w-3.5 h-3.5" /> },
-  { key: "structure", label: "Estructura",         icon: <Layers  className="w-3.5 h-3.5" />, requiresMeta: true },
-];
+function MetaQuickPanel({ s }: { s: MetaQuickSettings }) {
+  const [open, setOpen] = useState(false);
 
-function NavContent({ mainTab, analysisTab, onMainTab, onAnalysisTab, hasData, hasMetaConnection, reportsCount, onClose }: SidebarProps & { onClose?: () => void }) {
+  return (
+    <div className="mt-1 mb-1">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium hover:bg-accent/60 transition"
+        style={{ color: "var(--muted-foreground)" }}
+      >
+        <Zap className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+        <span className="flex-1 truncate text-left">{s.accountName || "Meta API"}</span>
+        <ChevronDown className={cn("w-3 h-3 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="mx-2 mb-1 rounded-lg border p-2 flex flex-col gap-2" style={{ borderColor: "var(--border)", background: "var(--accent)/50" }}>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-medium uppercase" style={{ color: "var(--muted-foreground)" }}>Período</label>
+            <select
+              value={s.datePreset}
+              onChange={(e) => s.onDatePreset(e.target.value as DatePreset)}
+              className="rounded-lg border px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-500/40"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--foreground)" }}
+            >
+              {(Object.entries(DATE_PRESET_LABELS) as [DatePreset, string][]).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-medium uppercase" style={{ color: "var(--muted-foreground)" }}>Nivel</label>
+            <select
+              value={s.level}
+              onChange={(e) => s.onLevel(e.target.value as "campaign" | "adset" | "ad")}
+              className="rounded-lg border px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-500/40"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--foreground)" }}
+            >
+              <option value="campaign">Campaña</option>
+              <option value="adset">Ad Set</option>
+              <option value="ad">Anuncio</option>
+            </select>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NavContent(props: SidebarProps & { onClose?: () => void }) {
+  const { mainTab, analysisTab, onMainTab, onAnalysisTab, hasData, hasMetaConnection,
+    reportsCount, campaignType, onCampaignType, metaQuick, onLogout, onClose } = props;
+
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
@@ -42,16 +143,13 @@ function NavContent({ mainTab, analysisTab, onMainTab, onAnalysisTab, hasData, h
         )}
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-2 py-3 flex flex-col gap-0.5 overflow-y-auto">
         {/* Análisis */}
         <button
           onClick={() => { onMainTab("analysis"); onClose?.(); }}
           className={cn(
             "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-all",
-            mainTab === "analysis"
-              ? "bg-blue-500/10 text-blue-400"
-              : "hover:bg-accent/60"
+            mainTab === "analysis" ? "bg-blue-500/10 text-blue-400" : "hover:bg-accent/60"
           )}
           style={mainTab !== "analysis" ? { color: "var(--foreground)" } : undefined}
         >
@@ -59,7 +157,7 @@ function NavContent({ mainTab, analysisTab, onMainTab, onAnalysisTab, hasData, h
           Análisis
         </button>
 
-        {/* Sub-ítems de Análisis — solo cuando hay datos */}
+        {/* Sub-ítems — solo cuando hay datos */}
         {mainTab === "analysis" && hasData && (
           <div className="ml-4 pl-2 border-l flex flex-col gap-0.5 mt-0.5" style={{ borderColor: "var(--border)" }}>
             {ANALYSIS_TABS.filter((t) => !t.requiresMeta || hasMetaConnection).map((t) => (
@@ -68,9 +166,7 @@ function NavContent({ mainTab, analysisTab, onMainTab, onAnalysisTab, hasData, h
                 onClick={() => { onAnalysisTab(t.key); onClose?.(); }}
                 className={cn(
                   "flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all",
-                  analysisTab === t.key
-                    ? "bg-blue-500/10 text-blue-400"
-                    : "hover:bg-accent/60"
+                  analysisTab === t.key ? "bg-blue-500/10 text-blue-400" : "hover:bg-accent/60"
                 )}
                 style={analysisTab !== t.key ? { color: "var(--muted-foreground)" } : undefined}
               >
@@ -89,9 +185,7 @@ function NavContent({ mainTab, analysisTab, onMainTab, onAnalysisTab, hasData, h
           onClick={() => { onMainTab("reports"); onClose?.(); }}
           className={cn(
             "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-all",
-            mainTab === "reports"
-              ? "bg-blue-500/10 text-blue-400"
-              : "hover:bg-accent/60"
+            mainTab === "reports" ? "bg-blue-500/10 text-blue-400" : "hover:bg-accent/60"
           )}
           style={mainTab !== "reports" ? { color: "var(--foreground)" } : undefined}
         >
@@ -103,11 +197,55 @@ function NavContent({ mainTab, analysisTab, onMainTab, onAnalysisTab, hasData, h
             </span>
           )}
         </button>
+
+        {/* Meta quick settings — solo cuando hay conexión Meta activa */}
+        {metaQuick && (
+          <>
+            <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
+            <p className="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>
+              Conexión Meta
+            </p>
+            <MetaQuickPanel s={metaQuick} />
+          </>
+        )}
+
+        {/* Tipo de campaña — solo cuando hay datos */}
+        {hasData && (
+          <>
+            <div className="my-1 border-t" style={{ borderColor: "var(--border)" }} />
+            <p className="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>
+              Tipo de campaña
+            </p>
+            {(Object.entries(CAMPAIGN_TYPE_CONFIG) as [CampaignType, typeof CAMPAIGN_TYPE_CONFIG[CampaignType]][]).map(([k, cfg]) => (
+              <button
+                key={k}
+                onClick={() => onCampaignType(k)}
+                className={cn(
+                  "flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                  campaignType === k ? "bg-blue-500/10 text-blue-400" : "hover:bg-accent/60"
+                )}
+                style={campaignType !== k ? { color: "var(--muted-foreground)" } : undefined}
+              >
+                {cfg.icon}
+                {cfg.label}
+                {campaignType === k && <ChevronRight className="w-3 h-3 ml-auto" />}
+              </button>
+            ))}
+          </>
+        )}
       </nav>
 
-      {/* Footer */}
-      <div className="px-4 py-3 border-t text-[10px]" style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}>
-        Paid Media Analyzer · 2025
+      {/* Footer con logout */}
+      <div className="px-3 py-3 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+        <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>Paid Media Analyzer</span>
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-1 text-[10px] hover:text-red-400 transition"
+          style={{ color: "var(--muted-foreground)" }}
+          title="Cerrar sesión"
+        >
+          <LogOut className="w-3 h-3" /> Salir
+        </button>
       </div>
     </div>
   );
@@ -118,7 +256,6 @@ export function Sidebar(props: SidebarProps) {
 
   return (
     <>
-      {/* Mobile toggle button — visible solo en mobile */}
       <button
         onClick={() => setMobileOpen(true)}
         className="md:hidden fixed top-3 left-3 z-50 flex items-center justify-center w-8 h-8 rounded-lg border"
@@ -127,15 +264,10 @@ export function Sidebar(props: SidebarProps) {
         <Menu className="w-4 h-4" />
       </button>
 
-      {/* Mobile overlay */}
       {mobileOpen && (
-        <div
-          className="md:hidden fixed inset-0 z-40 bg-black/50"
-          onClick={() => setMobileOpen(false)}
-        />
+        <div className="md:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Mobile drawer */}
       <div
         className={cn(
           "md:hidden fixed inset-y-0 left-0 z-50 w-56 border-r transition-transform duration-200",
@@ -146,9 +278,8 @@ export function Sidebar(props: SidebarProps) {
         <NavContent {...props} onClose={() => setMobileOpen(false)} />
       </div>
 
-      {/* Desktop sidebar — siempre visible */}
       <aside
-        className="hidden md:flex flex-col w-52 shrink-0 border-r sticky top-0 h-screen"
+        className="hidden md:flex flex-col w-56 shrink-0 border-r sticky top-0 h-screen"
         style={{ background: "var(--card)", borderColor: "var(--border)" }}
       >
         <NavContent {...props} />
